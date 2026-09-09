@@ -70,14 +70,14 @@
           <h4 class="font-bold text-emerald-900 uppercase mb-1">Tab 1: Log Sourcing Transaction</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
             <li><strong>Add New Village:</strong> Click <em>➕ Add New Village</em> in the table header to register non-surveyed locations.</li>
-            <li><strong>Global Signature Persistence:</strong> Uploaded vendor signatures sync via Google Sheets across all devices.</li>
+            <li><strong>Vendor Signature Upload:</strong> Signatures can be uploaded during logging or attached later in Tab 2.</li>
           </ul>
         </div>
         <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
-          <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Security</h4>
+          <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Late Signature Attachment</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
+            <li><strong>Retroactive Signature Update:</strong> Select a vendor and click <em>✏️ Upload Vendor Signature</em> to apply a signature image to all existing sheets for that vendor globally.</li>
             <li><strong>Protected Deletion:</strong> Requires Junior Manager Security PIN (`1234`).</li>
-            <li><strong>Aligned Single-Sheet PDFs:</strong> Up to 22 village items fit cleanly onto a single A4 printable page without splitting signatures.</li>
           </ul>
         </div>
       </div>
@@ -349,9 +349,18 @@
         </div>
 
         <!-- Vendor GRN Navigation Sub-Tabs / Chips Bar -->
-        <div id="vendorGrnToggleBar" class="hidden bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 flex items-center space-x-2 flex-wrap">
-          <span class="text-xs font-bold text-emerald-900 uppercase">Vendor Traceability Sheets:</span>
-          <div id="grnChipContainer" class="flex space-x-2 flex-wrap"></div>
+        <div id="vendorGrnToggleBar" class="hidden bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center space-x-2 flex-wrap">
+            <span class="text-xs font-bold text-emerald-900 uppercase">Vendor Traceability Sheets:</span>
+            <div id="grnChipContainer" class="flex space-x-2 flex-wrap"></div>
+          </div>
+          <!-- RETROACTIVE VENDOR SIGNATURE UPLOAD BUTTON -->
+          <div class="flex items-center space-x-2">
+            <label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow flex items-center space-x-1">
+              <span>✏️ Upload / Update Vendor Signature</span>
+              <input type="file" accept="image/png, image/jpeg, image/jpg" onchange="handleRetroactiveSignatureUpload(event)" class="hidden">
+            </label>
+          </div>
         </div>
 
         <!-- Toolbar Buttons -->
@@ -632,6 +641,50 @@
           ctx.drawImage(img, 0, 0, w, h);
           uploadedVendorSigBase64 = canvas.toDataURL('image/jpeg', 0.7);
           alert("Vendor signature image successfully attached to this transaction!");
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // RETROACTIVE SIGNATURE UPLOAD IN TAB 2
+    function handleRetroactiveSignatureUpload(event) {
+      const selectedVendor = document.getElementById('filterVendor').value;
+      if (!selectedVendor) {
+        alert("Please select a Vendor Name first.");
+        return;
+      }
+
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 300;
+          let w = img.width, h = img.height;
+          if (w > h) {
+            if (w > maxDim) { h *= maxDim / w; w = maxDim; }
+          } else {
+            if (h > maxDim) { w *= maxDim / h; h = maxDim; }
+          }
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const sigBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+          loggedTransactions.forEach(t => {
+            if (t.vendor_name === selectedVendor) {
+              t.vendor_sig_base64 = sigBase64;
+              syncSingleTransactionToCloud(t); // Sync update to Google Sheets
+            }
+          });
+
+          localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
+          renderTraceabilitySheet();
+          alert(`✅ Signature successfully attached to all sheets for vendor '${selectedVendor}' and synced to cloud!`);
         };
         img.src = e.target.result;
       };
