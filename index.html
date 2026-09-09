@@ -9,7 +9,6 @@
   <style>
     .tab-active { border-bottom: 3px solid #047857; color: #047857; font-weight: bold; }
     @media print { .no-print { display: none !important; } }
-    .grn-page-break { page-break-before: always; break-before: page; }
   </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-900">
@@ -538,50 +537,12 @@
       distDatalist.innerHTML = '';
       blockDatalist.innerHTML = '';
 
-      const adhocMap = {};
-
-      adhocVillagesStore.forEach(v => {
-        const key = v.village_name.toLowerCase() + '_' + v.block.toLowerCase();
-        adhocMap[key] = { ...v };
-      });
-
-      loggedTransactions.forEach(t => {
-        if (t.items && Array.isArray(t.items)) {
-          t.items.forEach(i => {
-            let isAdhoc = (i.ref_number && i.ref_number.startsWith('adhoc_')) || (i.status && i.status.includes('Non-Surveyed'));
-            if (isAdhoc && i.village_name && i.block) {
-              const key = i.village_name.toLowerCase() + '_' + i.block.toLowerCase();
-              if (!adhocMap[key]) {
-                adhocMap[key] = {
-                  ref_number: i.ref_number || ('adhoc_' + Math.random().toString(36).substring(2, 8)),
-                  village_id: i.village_id || (i.district + '_' + i.block + '_' + i.village_name),
-                  village_name: i.village_name,
-                  district: i.district || 'Unknown',
-                  block: i.block,
-                  gp: i.gp || 'Ad-Hoc GP',
-                  status: 'Non-Surveyed (Ad-Hoc)',
-                  lat: 0,
-                  lng: 0,
-                  est_trees: 0,
-                  max_cap_kg: 99999999,
-                  sourced_kg: 0,
-                  remaining_kg: 99999999,
-                  dist: 0
-                };
-              }
-            }
-          });
-        }
-      });
-
-      const allAdhocList = Object.values(adhocMap);
-
-      allAdhocList.forEach((v) => {
+      adhocVillagesStore.forEach((v) => {
         dropdown.innerHTML += `<option value="${v.ref_number}">${v.village_name} (${v.district} / ${v.block})</option>`;
       });
 
-      let allDistricts = [...new Set([...masterVillages.map(m => m.district), ...allAdhocList.map(a => a.district)])].filter(Boolean).sort();
-      let allBlocks = [...new Set([...masterVillages.map(m => m.block), ...allAdhocList.map(a => a.block)])].filter(Boolean).sort();
+      let allDistricts = [...new Set([...masterVillages.map(m => m.district), ...adhocVillagesStore.map(a => a.district)])].filter(Boolean).sort();
+      let allBlocks = [...new Set([...masterVillages.map(m => m.block), ...adhocVillagesStore.map(a => a.block)])].filter(Boolean).sort();
 
       allDistricts.forEach(d => { distDatalist.innerHTML += `<option value="${d}">`; });
       allBlocks.forEach(b => { blockDatalist.innerHTML += `<option value="${b}">`; });
@@ -639,12 +600,14 @@
       adhocVillagesStore = adhocVillagesStore.filter(a => a.ref_number !== refVal);
       masterVillages = masterVillages.filter(m => m.ref_number !== refVal);
       currentFilteredVillages = currentFilteredVillages.filter(f => f.ref_number !== refVal);
+      activeTxItems = activeTxItems.filter(i => i.ref_number !== refVal);
 
       localStorage.setItem('pongamia_adhoc_villages', JSON.stringify(adhocVillagesStore));
       renderVillageTable();
+      renderStagedTable();
       populateAdhocModalDropdowns();
 
-      alert("✅ Non-surveyed village entry deleted!");
+      alert("✅ Non-surveyed village entry deleted successfully!");
     }
 
     function autoCapitalizeStr(str) {
@@ -1493,7 +1456,7 @@
         : `<div style="height: 36px;"></div>`;
 
       return `
-        <div class="grn-page-break" style="width: 720px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto; page-break-after: always; break-after: page;">
+        <div style="width: 720px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto;">
           <div>
             <div style="text-align: center; font-weight: bold; font-size: 17px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase;">
               Traceability Sheet
@@ -1609,12 +1572,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.3, 0.3, 0.3, 0.3],
+        margin:       [0.2, 0.2, 0.2, 0.2],
         filename:     `${grnNumber}_Traceability_Sheet_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
+        pagebreak:    { mode: ['css', 'legacy'] }
       };
 
       try {
@@ -1684,12 +1647,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.3, 0.3, 0.3, 0.3],
+        margin:       [0.2, 0.2, 0.2, 0.2],
         filename:     `Consolidated_Traceability_Report_${fromDate}_to_${toDate}_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
+        pagebreak:    { mode: ['css', 'legacy'] }
       };
 
       try {
@@ -1754,12 +1717,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.3, 0.3, 0.3, 0.3],
+        margin:       [0.2, 0.2, 0.2, 0.2],
         filename:     `Consolidated_Vendor_Report_${selectedVendor.replace(/\s+/g, '_')}_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
+        pagebreak:    { mode: ['css', 'legacy'] }
       };
 
       try {
