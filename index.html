@@ -71,6 +71,7 @@
           <h4 class="font-bold text-emerald-900 uppercase mb-1">Tab 1: Log Sourcing Transaction</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
             <li><strong>Add New Village:</strong> Click <em>➕ Add New Village</em> directly in the table header to log non-surveyed locations with vendor-reported quantities.</li>
+            <li><strong>Global Non-Surveyed Dropdown:</strong> Select any non-surveyed village logged by team members across devices.</li>
             <li><strong>District & Block Memory:</strong> Districts and Blocks auto-capitalize and appear in dropdown lists for future entries.</li>
             <li><strong>Input Retention:</strong> Entering allocation quantities across multiple rows keeps all typed numbers intact when clicking Add.</li>
           </ul>
@@ -275,7 +276,7 @@
         </div>
       </div>
 
-      <!-- Nearby Village Capacity Table (With New Village Button in Header) -->
+      <!-- Nearby Village Capacity Table -->
       <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
           <div class="flex items-center space-x-3">
@@ -529,6 +530,7 @@
       document.getElementById('newVillageModal').classList.toggle('hidden');
     }
 
+    // SCANS LOCAL AND SYNCED CLOUD LOGS FOR NON-SURVEYED VILLAGES TO POPULATE DROPDOWN
     function populateAdhocModalDropdowns() {
       const dropdown = document.getElementById('nsExistingDropdown');
       const distDatalist = document.getElementById('nsDistrictDatalist');
@@ -538,25 +540,73 @@
       distDatalist.innerHTML = '';
       blockDatalist.innerHTML = '';
 
-      adhocVillagesStore.forEach((v, idx) => {
-        dropdown.innerHTML += `<option value="${idx}">${v.village_name} (${v.district} / ${v.block})</option>`;
+      const adhocMap = {};
+
+      adhocVillagesStore.forEach(v => {
+        const key = v.village_name.toLowerCase() + '_' + v.block.toLowerCase();
+        adhocMap[key] = { ...v };
       });
 
-      let allDistricts = [...new Set([...masterVillages.map(m => m.district), ...adhocVillagesStore.map(a => a.district)])].filter(Boolean).sort();
-      let allBlocks = [...new Set([...masterVillages.map(m => m.block), ...adhocVillagesStore.map(a => a.block)])].filter(Boolean).sort();
+      loggedTransactions.forEach(t => {
+        if (t.items && Array.isArray(t.items)) {
+          t.items.forEach(i => {
+            let isAdhoc = (i.ref_number && i.ref_number.startsWith('adhoc_')) || (i.status && i.status.includes('Non-Surveyed'));
+            if (isAdhoc && i.village_name && i.block) {
+              const key = i.village_name.toLowerCase() + '_' + i.block.toLowerCase();
+              if (!adhocMap[key]) {
+                adhocMap[key] = {
+                  ref_number: i.ref_number || ('adhoc_' + Math.random().toString(36).substring(2, 8)),
+                  village_id: i.village_id || (i.district + '_' + i.block + '_' + i.village_name),
+                  village_name: i.village_name,
+                  district: i.district || 'Unknown',
+                  block: i.block,
+                  gp: i.gp || 'Ad-Hoc GP',
+                  status: 'Non-Surveyed (Ad-Hoc)',
+                  lat: 0,
+                  lng: 0,
+                  est_trees: 0,
+                  max_cap_kg: 99999999,
+                  sourced_kg: 0,
+                  remaining_kg: 99999999,
+                  dist: 0
+                };
+              }
+            }
+          });
+        }
+      });
+
+      const allAdhocList = Object.values(adhocMap);
+
+      allAdhocList.forEach((v) => {
+        dropdown.innerHTML += `<option value="${v.ref_number}">${v.village_name} (${v.district} / ${v.block})</option>`;
+      });
+
+      let allDistricts = [...new Set([...masterVillages.map(m => m.district), ...allAdhocList.map(a => a.district)])].filter(Boolean).sort();
+      let allBlocks = [...new Set([...masterVillages.map(m => m.block), ...allAdhocList.map(a => a.block)])].filter(Boolean).sort();
 
       allDistricts.forEach(d => { distDatalist.innerHTML += `<option value="${d}">`; });
       allBlocks.forEach(b => { blockDatalist.innerHTML += `<option value="${b}">`; });
     }
 
-    function loadExistingAdhocVillage(idxVal) {
-      if (idxVal === "") return;
-      const v = adhocVillagesStore[parseInt(idxVal)];
+    function loadExistingAdhocVillage(refVal) {
+      if (refVal === "") return;
+      let v = masterVillages.find(m => m.ref_number === refVal) || adhocVillagesStore.find(a => a.ref_number === refVal);
+      
+      if (!v) {
+        loggedTransactions.forEach(t => {
+          if (t.items) {
+            let found = t.items.find(i => i.ref_number === refVal);
+            if (found) v = found;
+          }
+        });
+      }
+
       if (!v) return;
 
-      document.getElementById('nsVillageName').value = v.village_name;
-      document.getElementById('nsDistrict').value = v.district;
-      document.getElementById('nsBlock').value = v.block;
+      document.getElementById('nsVillageName').value = v.village_name || '';
+      document.getElementById('nsDistrict').value = v.district || '';
+      document.getElementById('nsBlock').value = v.block || '';
       document.getElementById('nsGp').value = v.gp || '';
     }
 
@@ -584,7 +634,7 @@
         return;
       }
 
-      let existingObj = adhocVillagesStore.find(a => a.village_name.toLowerCase() === vName.toLowerCase() && a.block.toLowerCase() === block.toLowerCase());
+      let existingObj = masterVillages.find(a => a.village_name.toLowerCase() === vName.toLowerCase() && a.block.toLowerCase() === block.toLowerCase());
       
       let targetObj;
 
@@ -611,10 +661,8 @@
 
         adhocVillagesStore.push(targetObj);
         localStorage.setItem('pongamia_adhoc_villages', JSON.stringify(adhocVillagesStore));
+        masterVillages.unshift(targetObj);
       }
-
-      let inMaster = masterVillages.find(m => m.ref_number === targetObj.ref_number);
-      if (!inMaster) masterVillages.unshift(targetObj);
 
       let inFiltered = currentFilteredVillages.find(f => f.ref_number === targetObj.ref_number);
       if (!inFiltered) currentFilteredVillages.unshift(targetObj);
