@@ -170,11 +170,8 @@
 
       <!-- Transaction Header Form -->
       <div class="bg-white p-4 rounded-lg shadow space-y-4">
-        <div class="flex justify-between items-center border-b pb-2">
+        <div class="border-b pb-2">
           <h2 class="text-sm font-semibold text-gray-700 uppercase">Transaction Header Details</h2>
-          <button onclick="resetTransactionForm()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
-            <span>🧹 Reset Form for New Entry</span>
-          </button>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
@@ -323,10 +320,7 @@
       </div>
 
       <!-- Bottom Actions -->
-      <div class="flex justify-between items-center">
-        <button onclick="resetTransactionForm()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg font-bold text-xs shadow">
-          🧹 Reset Form for New Entry
-        </button>
+      <div class="flex justify-end items-center">
         <button onclick="saveCurrentTransaction()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-bold shadow text-sm">
           Save Transaction & Sync to Cloud
         </button>
