@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pongamia Field Procurement & Traceability Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    .tab-active { border-bottom: 3px solid #047857; color: #047857; font-weight: bold; }
+    @media print { .no-print { display: none !important; } }
+    .grn-page-break { page-break-before: always; break-before: page; }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-900">
+
+  <!-- Webhook Missing Warning Banner -->
+  <div id="webhookAlertBanner" class="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex justify-between items-center hidden no-print">
+    <span>⚠️ CLOUD SYNC NOT CONFIGURED ON THIS DEVICE: Paste your Google Sheet Webhook URL in Tab 3 to enable live team sheet sharing!</span>
+    <button onclick="switchTab('sync')" class="bg-slate-900 text-white px-2 py-1 rounded text-[10px] uppercase font-extrabold">Setup Tab 3</button>
+  </div>
+
+  <!-- Main Header -->
+  <header class="bg-emerald-900 text-white p-3 px-4 shadow-md flex justify-between items-center flex-wrap gap-2">
+    <div>
+      <h1 class="text-lg font-bold tracking-tight">Pongamia Field Procurement & Traceability Engine</h1>
+      <p class="text-[11px] text-emerald-200">Developed by Chethan H C, JM Proc. Karnataka</p>
+    </div>
+    <div class="flex items-center space-x-2">
+      <!-- Unit Selection -->
+      <div class="flex items-center bg-emerald-800 px-2 py-1 rounded text-xs space-x-1 border border-emerald-700">
+        <label for="unitSelect" class="font-medium text-emerald-100 text-[11px]">Unit:</label>
+        <select id="unitSelect" onchange="changeUnit(this.value)" class="bg-emerald-950 text-white font-bold px-1.5 py-0.5 rounded text-xs focus:outline-none">
+          <option value="KG" selected>KG</option>
+          <option value="MT">MT (Metric Tonnes)</option>
+        </select>
+      </div>
+
+      <!-- Compact Guide Modal Trigger -->
+      <button onclick="toggleGuideModal()" class="bg-emerald-800 hover:bg-emerald-700 border border-emerald-600 text-xs px-2.5 py-1.5 rounded text-emerald-100 font-bold flex items-center space-x-1">
+        <span>ℹ️ Guide</span>
+      </button>
+
+      <button onclick="fetchCloudLedger()" class="bg-emerald-700 hover:bg-emerald-600 text-xs px-2.5 py-1.5 rounded text-white font-bold flex items-center space-x-1">
+        <span>🔄 Sync Team Traceability Sheets</span>
+      </button>
+      <button onclick="clearAllLogs()" class="bg-red-700 hover:bg-red-800 text-xs px-2 py-1.5 rounded text-white font-medium">Clear Cache</button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20 no-print">
+    <div class="max-w-7xl mx-auto flex space-x-8 px-4">
+      <button onclick="switchTab('log')" id="tab-log" class="py-3 px-2 tab-active">1. Log Sourcing Transaction</button>
+      <button onclick="switchTab('search')" id="tab-search" class="py-3 px-2 text-gray-500 hover:text-emerald-700">2. Traceability Search & Audit</button>
+      <button onclick="switchTab('sync')" id="tab-sync" class="py-3 px-2 text-gray-500 hover:text-emerald-700">3. Cloud Sync Setup</button>
+    </div>
+  </div>
+
+  <!-- Compact Guide Modal -->
+  <div id="guideModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-xl w-full mx-4 max-h-[90vh] overflow-y-auto p-5 border border-emerald-200">
+      <div class="flex justify-between items-center border-b pb-2 mb-3">
+        <h3 class="text-sm font-bold text-emerald-900 flex items-center space-x-1">
+          <span>ℹ️ System Quick Operational Guide</span>
+        </h3>
+        <button onclick="toggleGuideModal()" class="text-gray-400 hover:text-gray-700 text-base font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-xs text-gray-700 leading-relaxed">
+        <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+          <h4 class="font-bold text-emerald-900 uppercase mb-1">Tab 1: Log Sourcing Transaction</h4>
+          <ul class="list-disc pl-4 space-y-1 text-[11px]">
+            <li><strong>Add Non-Surveyed Village:</strong> Click <em>➕ Add Non-Surveyed Village</em> to register unsurveyed locations under new or existing districts/blocks.</li>
+            <li><strong>Vendor Signature Image:</strong> Attach a PNG/JPG signature image in Tab 1 to automatically embed digital signatures into printable A4 PDFs.</li>
+            <li><strong>Header Entry:</strong> Enter Vendor, GRN (auto-UPPERCASE), Total Qty, Date, Location, Staff Name.</li>
+            <li><strong>Proximity Search:</strong> Input Vendor Lat/Lng, set radius (1-100 km), click <em>Find Villages</em>.</li>
+          </ul>
+        </div>
+        <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+          <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Protected Management</h4>
+          <ul class="list-disc pl-4 space-y-1 text-[11px]">
+            <li><strong>Protected Deletion:</strong> Click <em>🗑️ Delete Selected Sheet</em>. Deletion requires Junior Manager Security PIN authorization (Default PIN: `1234`).</li>
+            <li><strong>Digital Signature PDFs:</strong> Downloaded A4 certificates render attached signature images directly in the signature box.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-4 text-right">
+        <button onclick="toggleGuideModal()" class="bg-emerald-800 text-white text-xs px-4 py-1.5 rounded font-bold hover:bg-emerald-900">Close Guide</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD NON-SURVEYED VILLAGE MODAL -->
+  <div id="nonSurveyedModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 border border-amber-300 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="text-sm font-bold text-amber-900 uppercase flex items-center space-x-1">
+          <span>➕ Add Non-Surveyed Village Entry</span>
+        </h3>
+        <button onclick="toggleNonSurveyedModal()" class="text-gray-400 hover:text-gray-700 text-base font-bold">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-gray-600 font-medium">Village Name *</label>
+          <input type="text" id="nsVillageName" placeholder="e.g. New Ramanagara" class="border rounded p-2 w-full mt-0.5">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-gray-600 font-medium">District *</label>
+            <input type="text" id="nsDistrict" placeholder="e.g. Tumakuru" class="border rounded p-2 w-full mt-0.5">
+          </div>
+          <div>
+            <label class="block text-gray-600 font-medium">Block / Taluk *</label>
+            <input type="text" id="nsBlock" placeholder="e.g. Sira" class="border rounded p-2 w-full mt-0.5">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-gray-600 font-medium">Gram Panchayat</label>
+            <input type="text" id="nsGp" placeholder="e.g. Sira GP" class="border rounded p-2 w-full mt-0.5">
+          </div>
+          <div>
+            <label class="block text-gray-600 font-medium">Est. Max Capacity (KG)</label>
+            <input type="number" id="nsMaxCap" value="5000" class="border rounded p-2 w-full mt-0.5 font-bold">
+          </div>
+        </div>
+        <p class="text-[10px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 italic">
+          * This village will be flagged as <strong>Non-Surveyed (Ad-Hoc)</strong> in traceability certificates and cloud logs.
+        </p>
+      </div>
+
+      <div class="flex justify-end space-x-2 pt-2 border-t">
+        <button onclick="toggleNonSurveyedModal()" class="bg-gray-200 text-gray-700 text-xs px-3 py-1.5 rounded font-bold hover:bg-gray-300">Cancel</button>
+        <button onclick="submitNonSurveyedVillage()" class="bg-amber-600 text-white text-xs px-4 py-1.5 rounded font-bold hover:bg-amber-700">Save & Register Village</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto p-4 space-y-6">
+
+    <!-- TAB 1: LOG SOURCING TRANSACTION -->
+    <section id="sec-log" class="space-y-6">
+
+      <!-- Master Upload & Non-Surveyed Addition Banner -->
+      <div class="bg-white p-4 rounded-lg shadow space-y-3">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-sm font-semibold text-gray-700 uppercase">Master Dataset Setup</h2>
+          <button onclick="toggleNonSurveyedModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+            <span>➕ Register Non-Surveyed Village</span>
+          </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Select Master CSV</label>
+            <input type="file" id="masterCsvInput" accept=".csv" onchange="loadMasterCsv(event)" class="mt-1 text-xs w-full border rounded p-1">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Yield Factor (kg / tree)</label>
+            <input type="number" id="yieldFactor" value="3" onchange="recalculateCapacities()" class="mt-1 border rounded p-1 text-sm w-full">
+          </div>
+          <div class="flex items-end">
+            <span id="masterStatus" class="text-xs text-emerald-700 font-medium">Ready for CSV input.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transaction Header Form with Signature File Upload -->
+      <div class="bg-white p-4 rounded-lg shadow space-y-4">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-sm font-semibold text-gray-700 uppercase">Transaction Header Details</h2>
+          <button onclick="resetTransactionForm()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+            <span>🧹 Reset Form for New Entry</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Vendor Name</label>
+            <input type="text" id="txVendor" placeholder="e.g. Naveen" class="border rounded p-2 text-sm w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Truck Arrival ID / GRN</label>
+            <input type="text" id="txTruck" placeholder="e.g. TAKA001" oninput="this.value = this.value.toUpperCase();" class="border rounded p-2 text-sm w-full uppercase font-mono font-bold">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Total Procured Qty (<span class="unitLbl">KG</span>)</label>
+            <input type="number" id="txTotalQty" placeholder="10000" oninput="updateAllocationCounter()" class="border rounded p-2 text-sm w-full bg-yellow-50 font-bold">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Date & Place</label>
+            <div class="flex space-x-1">
+              <input type="text" id="txPlace" placeholder="Madhugiri" class="border rounded p-2 text-sm w-1/2">
+              <input type="date" id="txDate" class="border rounded p-2 text-sm w-1/2">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Logged By (Staff)</label>
+            <input type="text" id="txLoggedBy" placeholder="Chethan H C" class="border rounded p-2 text-sm w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Upload Vendor Signature</label>
+            <input type="file" id="vendorSigInput" accept="image/png, image/jpeg, image/jpg" onchange="handleSignatureUpload(event)" class="mt-1 text-[10px] w-full border rounded p-1 bg-gray-50">
+          </div>
+        </div>
+
+        <!-- Dynamic Counter Banner -->
+        <div id="counterBanner" class="bg-slate-900 text-white p-3 rounded-lg flex justify-between items-center transition-colors duration-300">
+          <div>
+            <span class="text-xs text-gray-400 block">TRANSACTION ALLOCATION COUNTER</span>
+            <span class="text-lg font-bold">Total Procured: <span id="cntTotal">0</span> <span class="unitLbl">KG</span></span>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-gray-400 block">UNALLOCATED BALANCE TO ASSIGN</span>
+            <span class="text-xl font-extrabold text-emerald-400" id="cntUnallocated">0 <span class="unitLbl">KG</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Currently Staged Allocations -->
+      <div id="stagedSection" class="bg-amber-50 border border-amber-300 p-4 rounded-lg shadow space-y-3 hidden">
+        <div class="flex justify-between items-center border-b border-amber-200 pb-2">
+          <h3 class="text-xs font-bold text-amber-900 uppercase flex items-center space-x-2">
+            <span>📌 Currently Staged Allocations for this Transaction</span>
+            <span id="stagedBadge" class="bg-amber-200 text-amber-800 text-[10px] px-2 py-0.5 rounded-full">0 Items</span>
+          </h3>
+          <button onclick="clearAllStaged()" class="text-xs text-red-700 font-bold hover:underline">Clear All Staged</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-amber-100 text-amber-800 uppercase">
+              <tr>
+                <th class="p-2">Ref No</th>
+                <th class="p-2">Village Name</th>
+                <th class="p-2">Block</th>
+                <th class="p-2 text-right">Edit Allocated Qty (<span class="unitLbl">KG</span>)</th>
+                <th class="p-2 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="stagedTableBody" class="divide-y divide-amber-200">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Proximity Search Controls -->
+      <div class="bg-white p-4 rounded-lg shadow space-y-3">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase">Vendor Proximity Search (Up to 100 km)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
+          <div>
+            <label class="block text-xs text-gray-600">Vendor Latitude</label>
+            <input type="number" step="any" id="vendorLat" value="13.5676849" class="border rounded p-2 text-sm w-full">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600">Vendor Longitude</label>
+            <input type="number" step="any" id="vendorLng" value="77.2289126" class="border rounded p-2 text-sm w-full">
+          </div>
+          <div class="space-y-1">
+            <div class="flex justify-between text-xs text-gray-600">
+              <label>Search Radius (km)</label>
+              <span id="radiusValText" class="font-bold">10 km</span>
+            </div>
+            <div class="flex space-x-2 items-center">
+              <input type="range" id="radiusSlider" min="1" max="100" value="10" oninput="syncRadiusInput(this.value)" class="w-full">
+              <input type="number" id="radiusBox" min="1" max="100" value="10" oninput="syncRadiusSlider(this.value)" class="border rounded p-1 text-xs w-16 text-center">
+            </div>
+          </div>
+          <div class="flex items-end">
+            <button onclick="searchNearbyVillages()" class="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-semibold p-2 rounded text-sm">Find Villages in Radius</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Nearby Village Capacity Table -->
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
+          <div class="flex items-center space-x-3">
+            <h3 class="text-sm font-bold text-gray-800">Nearby Villages & Capacity Caps</h3>
+            <span id="tableUnallocatedBadge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800">
+              Unallocated: <span id="tblUnallocVal">0</span> <span class="unitLbl">KG</span>
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button onclick="addAllEnteredQuantities()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+              <span>⚡ Add All Entered</span>
+            </button>
+            <button onclick="saveCurrentTransaction()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+              <span>💾 Save & Sync Transaction</span>
+            </button>
+            <span id="resultCount" class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">0 Villages Found</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-50 text-gray-600 uppercase border-b">
+              <tr>
+                <th class="p-2">Village Name</th>
+                <th class="p-2">Ref No</th>
+                <th class="p-2">District / Block / GP</th>
+                <th class="p-2">Status</th>
+                <th class="p-2">Distance</th>
+                <th class="p-2">Max Cap (<span class="unitLbl">KG</span>)</th>
+                <th class="p-2">Max Permitted (+10%)</th>
+                <th class="p-2">Sourced (<span class="unitLbl">KG</span>)</th>
+                <th class="p-2">Remaining (<span class="unitLbl">KG</span>)</th>
+                <th class="p-2">Allocate Qty (<span class="unitLbl">KG</span>)</th>
+              </tr>
+            </thead>
+            <tbody id="villageTableBody" class="divide-y divide-gray-200">
+              <tr><td colspan="10" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bottom Actions -->
+      <div class="flex justify-between items-center">
+        <button onclick="resetTransactionForm()" class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2.5 rounded-lg font-bold text-xs shadow">
+          🧹 Reset Form for New Entry
+        </button>
+        <button onclick="saveCurrentTransaction()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-6 py-3 rounded-lg font-bold shadow text-sm">
+          Save Transaction & Sync to Cloud
+        </button>
+      </div>
+    </section>
+
+    <!-- TAB 2: TRACEABILITY SEARCH & AUDIT -->
+    <section id="sec-search" class="hidden space-y-6">
+      
+      <!-- Main Audit Filter Bar -->
+      <div class="bg-white p-4 rounded-lg shadow space-y-4 no-print">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-sm font-semibold text-gray-700 uppercase">End-of-Season Traceability & Audit Center</h2>
+          <button onclick="fetchCloudLedger()" class="bg-emerald-800 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded font-bold">Fetch All Team Traceability Sheets from Cloud</button>
+        </div>
+        
+        <!-- Decoupled Independent Filter Controls -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-600 font-medium mb-1">Filter by Single Truck Arrival ID / GRN</label>
+            <select id="filterTruck" onchange="onGrnFilterChange(this.value)" class="border rounded p-2 text-sm w-full bg-white"><option value="">-- Select Truck ID --</option></select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-600 font-medium mb-1">Filter by Single Vendor Name</label>
+            <select id="filterVendor" onchange="onVendorFilterChange(this.value)" class="border rounded p-2 text-sm w-full bg-white"><option value="">-- Select Vendor --</option></select>
+          </div>
+        </div>
+
+        <!-- Vendor GRN Navigation Sub-Tabs / Chips Bar -->
+        <div id="vendorGrnToggleBar" class="hidden bg-emerald-50 p-2.5 rounded-lg border border-emerald-200 flex items-center space-x-2 flex-wrap">
+          <span class="text-xs font-bold text-emerald-900 uppercase">Vendor Traceability Sheets:</span>
+          <div id="grnChipContainer" class="flex space-x-2 flex-wrap"></div>
+        </div>
+
+        <!-- Toolbar Buttons -->
+        <div class="flex space-x-3 pt-1 flex-wrap gap-y-2">
+          <button onclick="exportToPdf()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded font-semibold">Download Selected A4 PDF</button>
+          <button onclick="deleteSelectedGrn()" class="bg-red-700 hover:bg-red-800 text-white text-xs px-4 py-2 rounded font-semibold flex items-center space-x-1">
+            <span>🔒 Delete Selected Sheet (PIN Protected)</span>
+          </button>
+          <button onclick="exportLoggedCsv()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-4 py-2 rounded font-semibold">Export All Logged Data (CSV)</button>
+        </div>
+      </div>
+
+      <!-- Printable Single A4 Certificate Container -->
+      <div id="pdfContainer" class="bg-white p-8 rounded shadow max-w-4xl mx-auto border border-gray-300">
+        <div class="text-center font-bold text-lg tracking-wide border-b border-gray-800 pb-2 mb-4 uppercase">Traceability Sheet</div>
+        
+        <div class="border border-gray-800 mb-4">
+          <div class="flex border-b border-gray-800">
+            <div class="w-1/3 p-2 font-bold border-r border-gray-800 text-xs">Vendor Name</div>
+            <div class="w-2/3 p-2 text-xs" id="pdfVendorName">-</div>
+          </div>
+          <div class="flex">
+            <div class="w-1/3 p-2 font-bold border-r border-gray-800 text-xs">Truck Arrival ID / GRN</div>
+            <div class="w-2/3 p-2 text-xs font-mono font-bold" id="pdfTruckId">-</div>
+          </div>
+        </div>
+
+        <table class="w-full border-collapse border border-gray-800 text-xs mb-4">
+          <thead>
+            <tr class="bg-gray-100 border-b border-gray-800">
+              <th class="border-r border-gray-800 p-2 text-left">Ref Number</th>
+              <th class="border-r border-gray-800 p-2 text-left">Village Name</th>
+              <th class="border-r border-gray-800 p-2 text-left">Block</th>
+              <th class="p-2 text-right">Qty (in <span class="unitLbl">KG</span>)</th>
+            </tr>
+          </thead>
+          <tbody id="pdfTableBody">
+            <tr><td colspan="4" class="p-4 text-center text-gray-400">Select a Truck ID or Vendor above to render certificate.</td></tr>
+          </tbody>
+          <tfoot>
+            <tr class="border-t border-gray-800 font-bold">
+              <td colspan="3" class="p-2 text-right border-r border-gray-800 uppercase">Total Qty (in <span class="unitLbl">KG</span>)</td>
+              <td class="p-2 text-right" id="pdfTotalQty">0</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <p class="text-[10px] italic text-gray-600 mb-8">I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.</p>
+
+        <!-- Clean Signature Block -->
+        <div class="flex justify-between items-end text-xs pt-4 border-t border-gray-300">
+          <div>
+            <p><strong>Place, Date:</strong> <span id="pdfPlaceDate">-</span></p>
+          </div>
+          <div class="text-center">
+            <div id="pdfSigImgPreview" class="h-12 flex items-center justify-center"></div>
+            <div class="w-48 border-t border-gray-800 pt-1 font-bold">Signature of Vendor</div>
+            <div class="text-[10px] text-gray-500 mt-1">Logged By: <span id="pdfLoggedBy">-</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONSOLIDATED REPORT GENERATOR BOXES -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 no-print max-w-4xl mx-auto mt-8">
+        
+        <!-- Box 1: Date Range Consolidated Generator -->
+        <div class="border bg-purple-50 p-4 rounded-lg border-purple-200 shadow space-y-3">
+          <h3 class="text-xs font-bold text-purple-900 uppercase">📄 DATE RANGE CONSOLIDATED REPORT</h3>
+          <p class="text-[11px] text-purple-700">Generates a multi-page PDF combining all sheets in chronological order within date limits.</p>
+          <div class="space-y-2">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] text-purple-800 font-semibold">From Date</label>
+                <input type="date" id="pdfFromDate" class="border border-purple-300 rounded p-1.5 text-xs w-full bg-white">
+              </div>
+              <div>
+                <label class="block text-[10px] text-purple-800 font-semibold">To Date</label>
+                <input type="date" id="pdfToDate" class="border border-purple-300 rounded p-1.5 text-xs w-full bg-white">
+              </div>
+            </div>
+            <button onclick="downloadConsolidatedPdf()" class="w-full bg-purple-800 hover:bg-purple-900 text-white text-xs px-3 py-2 rounded font-bold shadow">
+              📄 Download Date Range PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- Box 2: Vendor Consolidated Generator -->
+        <div class="border bg-blue-50 p-4 rounded-lg border-blue-200 shadow space-y-3">
+          <h3 class="text-xs font-bold text-blue-900 uppercase">📄 VENDOR BATCH CONSOLIDATED REPORT</h3>
+          <p class="text-[11px] text-blue-700">Generates a single multi-page PDF combining all sheets for a selected vendor.</p>
+          <div class="space-y-2">
+            <div>
+              <label class="block text-[10px] text-blue-800 font-semibold">Select Vendor</label>
+              <select id="filterConsolidatedVendor" class="border border-blue-300 rounded p-1.5 text-xs w-full bg-white">
+                <option value="">-- Select Vendor --</option>
+              </select>
+            </div>
+            <button onclick="downloadVendorConsolidatedPdf()" class="w-full bg-blue-800 hover:bg-blue-900 text-white text-xs px-3 py-2 rounded font-bold shadow">
+              📄 Download Vendor Master PDF
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: CLOUD SYNC SETUP -->
+    <section id="sec-sync" class="hidden space-y-4">
+      <div class="bg-white p-6 rounded-lg shadow space-y-4">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase">Multi-Device Real-Time Synchronization Setup</h2>
+        <p class="text-xs text-gray-600">Paste your deployed Google Apps Script Webhook URL below to sync offline allocations across all supervisors in real time.</p>
+        <div>
+          <label class="block text-xs font-medium text-gray-600">Google Apps Script Webhook URL</label>
+          <input type="url" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec" class="border rounded p-2 text-sm w-full mt-1">
+        </div>
+        <div class="flex space-x-3">
+          <button onclick="saveWebhookUrl()" class="bg-emerald-700 text-white text-xs px-4 py-2 rounded font-bold">Save Webhook URL</button>
+          <button onclick="fetchCloudLedger()" class="bg-blue-600 text-white text-xs px-4 py-2 rounded font-bold">Pull All Cloud Data Now</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let masterVillages = [];
+    let loggedTransactions = JSON.parse(localStorage.getItem('pongamia_logs') || '[]');
+    let currentFilteredVillages = [];
+    let activeTxItems = [];
+    let currentUnit = 'KG';
+    let uploadedVendorSigBase64 = ""; // Stores digital signature image string
+
+    // MANAGER DELETION SECURITY PIN (Change '1234' to your team secret PIN)
+    const MANAGER_DELETE_PIN = "1234";
+
+    let currentVendorGrns = [];
+    let activeVendorGrnIndex = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const savedWebhook = localStorage.getItem('pongamia_webhook');
+      if (savedWebhook) {
+        document.getElementById('webhookUrl').value = savedWebhook;
+        document.getElementById('webhookAlertBanner').classList.add('hidden');
+        fetchCloudLedger();
+      } else {
+        document.getElementById('webhookAlertBanner').classList.remove('hidden');
+      }
+      document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
+    });
+
+    function toggleGuideModal() {
+      document.getElementById('guideModal').classList.toggle('hidden');
+    }
+
+    function toggleNonSurveyedModal() {
+      document.getElementById('nonSurveyedModal').classList.toggle('hidden');
+    }
+
+    // SIGNATURE FILE UPLOAD HANDLER
+    function handleSignatureUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        uploadedVendorSigBase64 = e.target.result;
+        alert("Vendor signature image successfully attached to this transaction!");
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // SUBMIT NEW NON-SURVEYED VILLAGE
+    function submitNonSurveyedVillage() {
+      const vName = document.getElementById('nsVillageName').value.trim();
+      const dist = document.getElementById('nsDistrict').value.trim();
+      const block = document.getElementById('nsBlock').value.trim();
+      const gp = document.getElementById('nsGp').value.trim() || 'Ad-Hoc GP';
+      const maxCap = parseFloat(document.getElementById('nsMaxCap').value) || 5000;
+
+      if (!vName || !dist || !block) {
+        alert("Please complete Village Name, District, and Block.");
+        return;
+      }
+
+      const refNo = 'adhoc_' + Math.random().toString(36).substring(2, 8);
+
+      const newVillageObj = {
+        ref_number: refNo,
+        village_id: `${dist}_${block}_${vName}`,
+        village_name: vName,
+        district: dist,
+        block: block,
+        gp: gp,
+        status: 'Non-Surveyed (Ad-Hoc)',
+        lat: parseFloat(document.getElementById('vendorLat').value) || 0,
+        lng: parseFloat(document.getElementById('vendorLng').value) || 0,
+        est_trees: Math.round(maxCap / 3),
+        max_cap_kg: maxCap,
+        sourced_kg: 0,
+        remaining_kg: maxCap,
+        dist: 0
+      };
+
+      masterVillages.push(newVillageObj);
+      currentFilteredVillages.unshift(newVillageObj);
+
+      renderVillageTable();
+      toggleNonSurveyedModal();
+
+      document.getElementById('nsVillageName').value = '';
+      document.getElementById('nsDistrict').value = '';
+      document.getElementById('nsBlock').value = '';
+      document.getElementById('nsGp').value = '';
+
+      alert(`Village '${vName}' registered successfully as Non-Surveyed (Ad-Hoc)!`);
+    }
+
+    function changeUnit(unit) {
+      currentUnit = unit;
+      document.querySelectorAll('.unitLbl').forEach(el => el.innerText = unit);
+      renderVillageTable();
+      renderStagedTable();
+      updateAllocationCounter();
+      if (!document.getElementById('sec-search').classList.contains('hidden')) {
+        renderTraceabilitySheet();
+      }
+    }
+
+    function unitMultiplier() {
+      return currentUnit === 'MT' ? 0.001 : 1.0;
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+      document.querySelectorAll('.max-w-7xl button').forEach(b => b.classList.remove('tab-active'));
+      document.getElementById('sec-' + tab).classList.remove('hidden');
+      document.getElementById('tab-' + tab).classList.add('tab-active');
+      if (tab === 'search') populateSearchDropdowns();
+    }
+
+    function syncRadiusInput(val) {
+      document.getElementById('radiusBox').value = val;
+      document.getElementById('radiusValText').innerText = val + ' km';
+    }
+
+    function syncRadiusSlider(val) {
+      let num = Math.min(Math.max(val, 1), 100);
+      document.getElementById('radiusSlider').value = num;
+      document.getElementById('radiusValText').innerText = num + ' km';
+    }
+
+    function loadMasterCsv(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) { parseCsvData(e.target.result); };
+      reader.readAsText(file);
+    }
+
+    function parseCsvData(text) {
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      masterVillages = [];
+      const yieldFactor = parseFloat(document.getElementById('yieldFactor').value) || 3;
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+        if (cols.length < 5) continue;
+
+        let v = {};
+        headers.forEach((h, idx) => { v[h] = cols[idx]; });
+
+        let estTrees = parseFloat(v['Estimated Trees']) || 0;
+        let maxCapKg = estTrees * yieldFactor;
+        let refNo = v['Reference Number'] || ('fm' + Math.random().toString(36).substring(2,8));
+        let sourcedKg = getSourcedFromLogs(refNo);
+
+        masterVillages.push({
+          ref_number: refNo,
+          village_id: v['Village_ID'] || (v['District'] + '_' + v['Village Name']),
+          village_name: v['Village Name'],
+          district: v['District'],
+          block: v['Block / Taluk'],
+          gp: v['Gram Panchayat'],
+          status: v['Audit Status'] || 'Approved',
+          lat: parseFloat(v['Latitude']),
+          lng: parseFloat(v['Longitude']),
+          est_trees: estTrees,
+          max_cap_kg: maxCapKg,
+          sourced_kg: sourcedKg,
+          remaining_kg: maxCapKg - sourcedKg
+        });
+      }
+      document.getElementById('masterStatus').innerText = `Loaded ${masterVillages.length} master villages!`;
+    }
+
+    function getSourcedFromLogs(ref) {
+      let total = 0;
+      loggedTransactions.forEach(t => {
+        if (t.items && Array.isArray(t.items)) {
+          t.items.forEach(i => {
+            if (i.ref_number === ref) total += parseFloat(i.allocated_kg || 0);
+          });
+        }
+      });
+      return total;
+    }
+
+    function recalculateMasterSourcedFromLogs() {
+      if (!masterVillages || masterVillages.length === 0) return;
+      masterVillages.forEach(v => {
+        let sourcedKg = getSourcedFromLogs(v.ref_number);
+        v.sourced_kg = sourcedKg;
+        v.remaining_kg = v.max_cap_kg - sourcedKg;
+      });
+      if (currentFilteredVillages.length > 0) {
+        currentFilteredVillages.forEach(fv => {
+          let m = masterVillages.find(mv => mv.ref_number === fv.ref_number);
+          if (m) {
+            fv.sourced_kg = m.sourced_kg;
+            fv.remaining_kg = m.remaining_kg;
+          }
+        });
+        renderVillageTable();
+      }
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) return 99999;
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function searchNearbyVillages() {
+      const vLat = parseFloat(document.getElementById('vendorLat').value);
+      const vLng = parseFloat(document.getElementById('vendorLng').value);
+      const radius = parseFloat(document.getElementById('radiusBox').value);
+
+      if (isNaN(vLat) || isNaN(vLng)) {
+        alert("Please enter valid vendor Latitude and Longitude.");
+        return;
+      }
+
+      currentFilteredVillages = masterVillages.map(v => {
+        let dist = haversine(vLat, vLng, v.lat, v.lng);
+        return { ...v, dist: dist };
+      }).filter(v => v.dist <= radius).sort((a,b) => a.dist - b.dist);
+
+      renderVillageTable();
+    }
+
+    function renderVillageTable() {
+      const tbody = document.getElementById('villageTableBody');
+      tbody.innerHTML = '';
+      document.getElementById('resultCount').innerText = `${currentFilteredVillages.length} Villages within radius`;
+
+      if (currentFilteredVillages.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>`;
+        return;
+      }
+
+      const mult = unitMultiplier();
+
+      currentFilteredVillages.forEach((v, idx) => {
+        let maxCapDisp = (v.max_cap_kg * mult).toFixed(2);
+        let maxPermittedDisp = ((v.max_cap_kg * 1.10) * mult).toFixed(2);
+        let sourcedDisp = (v.sourced_kg * mult).toFixed(2);
+        let remVal = Math.max(0, (v.remaining_kg * mult));
+        let remDisp = remVal.toFixed(2);
+
+        let remStyleClass = remVal <= 0 ? "text-gray-500 font-bold bg-gray-100 px-1.5 py-0.5 rounded" : "text-emerald-700 font-extrabold";
+
+        let tr = document.createElement('tr');
+        tr.className = "hover:bg-gray-50";
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-gray-800">${v.village_name}</td>
+          <td class="p-2 font-mono text-gray-500">${v.ref_number}</td>
+          <td class="p-2 text-gray-600">${v.district} / ${v.block} / ${v.gp}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] ${v.status.includes('Non-Surveyed') ? 'bg-amber-100 text-amber-900 font-bold' : (v.status.includes('Audit') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800')}">${v.status}</span></td>
+          <td class="p-2 font-semibold">${v.dist.toFixed(2)} km</td>
+          <td class="p-2 font-bold">${maxCapDisp} ${currentUnit}</td>
+          <td class="p-2 text-purple-700 font-bold">${maxPermittedDisp} ${currentUnit}</td>
+          <td class="p-2 text-amber-700">${sourcedDisp} ${currentUnit}</td>
+          <td class="p-2"><span class="${remStyleClass}">${remDisp} ${currentUnit}</span></td>
+          <td class="p-2">
+            <div class="flex space-x-1">
+              <input type="number" step="any" id="alloc_${idx}" placeholder="${currentUnit}" class="border rounded p-1 w-20 text-xs">
+              <button onclick="allocateVillage(${idx})" class="bg-emerald-700 text-white px-2 py-1 rounded text-xs font-bold hover:bg-emerald-800">Add</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function allocateVillage(idx) {
+      const v = currentFilteredVillages[idx];
+      const valInput = document.getElementById(`alloc_${idx}`);
+      const valEntered = parseFloat(valInput.value);
+
+      if (isNaN(valEntered) || valEntered <= 0) {
+        alert("Enter a valid weight to allocate.");
+        return;
+      }
+
+      const valKg = currentUnit === 'MT' ? valEntered * 1000 : valEntered;
+      const maxPermittedKg = v.max_cap_kg * 1.10;
+
+      if ((v.sourced_kg + valKg) > maxPermittedKg) {
+        const confirmExceed = confirm(`Allocation exceeds max permitted (+10% limit: ${(maxPermittedKg * unitMultiplier()).toFixed(2)} ${currentUnit}).\n\nAllow soft deviation entry?`);
+        if (!confirmExceed) return;
+      }
+
+      let existing = activeTxItems.find(item => item.ref_number === v.ref_number);
+      if (existing) {
+        existing.allocated_kg += valKg;
+      } else {
+        activeTxItems.push({
+          ref_number: v.ref_number,
+          village_id: v.village_id,
+          village_name: v.village_name,
+          block: v.block,
+          allocated_kg: valKg
+        });
+      }
+
+      v.sourced_kg += valKg;
+      v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+      valInput.value = '';
+      
+      renderStagedTable();
+      renderVillageTable();
+      updateAllocationCounter();
+    }
+
+    function addAllEnteredQuantities() {
+      let addedCount = 0;
+      currentFilteredVillages.forEach((v, idx) => {
+        const valInput = document.getElementById(`alloc_${idx}`);
+        if (valInput && valInput.value) {
+          const valEntered = parseFloat(valInput.value);
+          if (!isNaN(valEntered) && valEntered > 0) {
+            const valKg = currentUnit === 'MT' ? valEntered * 1000 : valEntered;
+            
+            let existing = activeTxItems.find(item => item.ref_number === v.ref_number);
+            if (existing) {
+              existing.allocated_kg += valKg;
+            } else {
+              activeTxItems.push({
+                ref_number: v.ref_number,
+                village_id: v.village_id,
+                village_name: v.village_name,
+                block: v.block,
+                allocated_kg: valKg
+              });
+            }
+
+            v.sourced_kg += valKg;
+            v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+            valInput.value = '';
+            addedCount++;
+          }
+        }
+      });
+
+      if (addedCount > 0) {
+        renderStagedTable();
+        renderVillageTable();
+        updateAllocationCounter();
+        alert(`Successfully added allocations for ${addedCount} villages!`);
+      } else {
+        alert("No quantities were entered in the table fields.");
+      }
+    }
+
+    function renderStagedTable() {
+      const sec = document.getElementById('stagedSection');
+      const tbody = document.getElementById('stagedTableBody');
+      const badge = document.getElementById('stagedBadge');
+
+      if (activeTxItems.length === 0) {
+        sec.classList.add('hidden');
+        tbody.innerHTML = '';
+        return;
+      }
+
+      sec.classList.remove('hidden');
+      badge.innerText = `${activeTxItems.length} Village(s)`;
+      tbody.innerHTML = '';
+      const mult = unitMultiplier();
+
+      activeTxItems.forEach((item, idx) => {
+        let dispQty = (item.allocated_kg * mult).toFixed(2);
+        let tr = document.createElement('tr');
+        tr.className = "hover:bg-amber-100/50";
+        tr.innerHTML = `
+          <td class="p-2 font-mono">${item.ref_number}</td>
+          <td class="p-2 font-bold text-gray-800">${item.village_name}</td>
+          <td class="p-2 text-gray-600">${item.block}</td>
+          <td class="p-2 text-right">
+            <div class="flex items-center justify-end space-x-1">
+              <input type="number" step="any" value="${dispQty}" onchange="updateStagedItemQty(${idx}, this.value)" oninput="updateStagedItemQty(${idx}, this.value)" class="border border-amber-400 rounded p-1 w-24 text-right font-bold text-amber-900 bg-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none">
+              <span class="font-bold text-amber-900 text-xs">${currentUnit}</span>
+            </div>
+          </td>
+          <td class="p-2 text-center">
+            <button onclick="removeStagedItem(${idx})" class="bg-red-600 hover:bg-red-700 text-white text-[10px] px-2 py-1 rounded font-bold shadow">🗑️ Remove</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateStagedItemQty(idx, newDispVal) {
+      const item = activeTxItems[idx];
+      if (!item) return;
+
+      const valEntered = parseFloat(newDispVal);
+      if (isNaN(valEntered) || valEntered < 0) return;
+
+      const newValKg = currentUnit === 'MT' ? valEntered * 1000 : valEntered;
+      const diffKg = newValKg - item.allocated_kg;
+
+      const vMaster = masterVillages.find(m => m.ref_number === item.ref_number);
+      if (vMaster) {
+        vMaster.sourced_kg += diffKg;
+        vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
+      }
+
+      const vFiltered = currentFilteredVillages.find(f => f.ref_number === item.ref_number);
+      if (vFiltered) {
+        vFiltered.sourced_kg += diffKg;
+        vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
+      }
+
+      item.allocated_kg = newValKg;
+
+      renderVillageTable();
+      updateAllocationCounter();
+    }
+
+    function removeStagedItem(idx) {
+      const item = activeTxItems[idx];
+      
+      const vMaster = masterVillages.find(m => m.ref_number === item.ref_number);
+      if (vMaster) {
+        vMaster.sourced_kg -= item.allocated_kg;
+        vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
+      }
+
+      const vFiltered = currentFilteredVillages.find(f => f.ref_number === item.ref_number);
+      if (vFiltered) {
+        vFiltered.sourced_kg -= item.allocated_kg;
+        vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
+      }
+
+      activeTxItems.splice(idx, 1);
+
+      renderStagedTable();
+      renderVillageTable();
+      updateAllocationCounter();
+    }
+
+    function clearAllStaged() {
+      if (confirm("Remove all staged allocations for this transaction?")) {
+        while (activeTxItems.length > 0) {
+          removeStagedItem(0);
+        }
+      }
+    }
+
+    function updateAllocationCounter() {
+      const totalEntered = parseFloat(document.getElementById('txTotalQty').value) || 0;
+      const totalProcuredKg = currentUnit === 'MT' ? totalEntered * 1000 : totalEntered;
+      let allocatedSumKg = activeTxItems.reduce((acc, item) => acc + item.allocated_kg, 0);
+      let unallocatedKg = totalProcuredKg - allocatedSumKg;
+
+      const mult = unitMultiplier();
+      const dispTotal = (totalProcuredKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+      const dispUnalloc = (unallocatedKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+      document.getElementById('cntTotal').innerText = dispTotal;
+      document.getElementById('cntUnallocated').innerText = `${dispUnalloc} ${currentUnit}`;
+      document.getElementById('tblUnallocVal').innerText = dispUnalloc;
+
+      const banner = document.getElementById('counterBanner');
+      const badge = document.getElementById('tableUnallocatedBadge');
+      const unallocText = document.getElementById('cntUnallocated');
+
+      if (unallocatedKg < 0) {
+        banner.className = "bg-red-900 text-white p-3 rounded-lg flex justify-between items-center transition-colors duration-300 animate-pulse";
+        badge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-red-600 text-white animate-pulse";
+        unallocText.className = "text-xl font-extrabold text-red-200";
+      } else {
+        banner.className = "bg-slate-900 text-white p-3 rounded-lg flex justify-between items-center transition-colors duration-300";
+        badge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800";
+        unallocText.className = "text-xl font-extrabold text-emerald-400";
+      }
+    }
+
+    function resetTransactionForm() {
+      document.getElementById('txVendor').value = '';
+      document.getElementById('txTruck').value = '';
+      document.getElementById('txTotalQty').value = '';
+      document.getElementById('txPlace').value = '';
+      document.getElementById('txLoggedBy').value = 'Chethan H C';
+      document.getElementById('vendorSigInput').value = '';
+      uploadedVendorSigBase64 = "";
+      document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
+      
+      activeTxItems = [];
+      renderStagedTable();
+      updateAllocationCounter();
+
+      alert("Form reset successfully! Master CSV dataset remains attached.");
+    }
+
+    function saveCurrentTransaction() {
+      const vendor = document.getElementById('txVendor').value;
+      const truck = document.getElementById('txTruck').value.toUpperCase();
+      const totalEntered = parseFloat(document.getElementById('txTotalQty').value);
+
+      if (!vendor || !truck || isNaN(totalEntered) || activeTxItems.length === 0) {
+        alert("Please complete Vendor Name, Truck ID, Total Quantity, and add at least one village allocation.");
+        return;
+      }
+
+      const totalProcuredKg = currentUnit === 'MT' ? totalEntered * 1000 : totalEntered;
+
+      const txObj = {
+        id: 'TX_' + Date.now(),
+        date: document.getElementById('txDate').value,
+        place: document.getElementById('txPlace').value,
+        vendor_name: vendor,
+        truck_id: truck,
+        logged_by: document.getElementById('txLoggedBy').value || 'Chethan H C',
+        vendor_sig_base64: uploadedVendorSigBase64 || "",
+        total_kg: totalProcuredKg,
+        items: [...activeTxItems]
+      };
+
+      loggedTransactions.push(txObj);
+      localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
+      
+      syncSingleTransactionToCloud(txObj);
+
+      alert("Transaction saved and synced to cloud!");
+      activeTxItems = [];
+      uploadedVendorSigBase64 = "";
+      document.getElementById('vendorSigInput').value = '';
+      renderStagedTable();
+      updateAllocationCounter();
+    }
+
+    // STRICT GOOGLE SHEETS CLOUD MIRROR
+    async function fetchCloudLedger() {
+      const url = localStorage.getItem('pongamia_webhook');
+      if (!url) {
+        document.getElementById('webhookAlertBanner').classList.remove('hidden');
+        return;
+      }
+
+      document.getElementById('webhookAlertBanner').classList.add('hidden');
+
+      try {
+        const res = await fetch(url);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) return;
+
+        const txMap = {};
+
+        rows.forEach(r => {
+          const truckId = String(r.Truck_ID || r.truck_id || 'UNKNOWN').toUpperCase();
+          if (!txMap[truckId]) {
+            txMap[truckId] = {
+              id: truckId,
+              date: String(r.Date || r.date || '').substring(0, 10),
+              place: r.Place || r.place || '',
+              vendor_name: r.Vendor_Name || r.vendor_name || '',
+              truck_id: truckId,
+              logged_by: r.Logged_By || r.logged_by || '',
+              vendor_sig_base64: r.Vendor_Sig_Base64 || r.vendor_sig_base64 || '',
+              total_kg: 0,
+              items: []
+            };
+          }
+          
+          const qty = parseFloat(r.Allocated_Qty_kg || r.allocated_kg || 0);
+          const refNo = r.Ref_Number || r.ref_number || '';
+          
+          txMap[truckId].items.push({
+            ref_number: refNo,
+            village_id: r.Village_ID || r.village_id || '',
+            village_name: r.Village_Name || r.village_name || '',
+            block: r.Block || r.block || '',
+            allocated_kg: qty
+          });
+          
+          txMap[truckId].total_kg = txMap[truckId].items.reduce((a,b) => a + b.allocated_kg, 0);
+        });
+
+        loggedTransactions = Object.values(txMap);
+        localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
+        
+        recalculateMasterSourcedFromLogs();
+        populateSearchDropdowns();
+      } catch (e) {
+        console.error("Cloud fetch error:", e);
+      }
+    }
+
+    function populateSearchDropdowns() {
+      const truckSel = document.getElementById('filterTruck');
+      const vendorSel = document.getElementById('filterVendor');
+      const consVendorSel = document.getElementById('filterConsolidatedVendor');
+      
+      truckSel.innerHTML = '<option value="">-- Select Truck ID --</option>';
+      vendorSel.innerHTML = '<option value="">-- Select Vendor --</option>';
+      consVendorSel.innerHTML = '<option value="">-- Select Vendor --</option>';
+
+      let trucks = [...new Set(loggedTransactions.map(t => t.truck_id))].sort();
+      let vendors = [...new Set(loggedTransactions.map(t => t.vendor_name))].sort();
+
+      trucks.forEach(t => { truckSel.innerHTML += `<option value="${t}">${t}</option>`; });
+      vendors.forEach(v => { 
+        vendorSel.innerHTML += `<option value="${v}">${v}</option>`; 
+        consVendorSel.innerHTML += `<option value="${v}">${v}</option>`;
+      });
+    }
+
+    // INDEPENDENT FILTER HANDLERS
+    function onGrnFilterChange(truckVal) {
+      document.getElementById('filterVendor').value = "";
+      document.getElementById('vendorGrnToggleBar').classList.add('hidden');
+
+      if (!truckVal) return;
+      renderTraceabilitySheetForGrn(truckVal);
+    }
+
+    function onVendorFilterChange(vendorVal) {
+      document.getElementById('filterTruck').value = "";
+
+      if (!vendorVal) {
+        document.getElementById('vendorGrnToggleBar').classList.add('hidden');
+        return;
+      }
+
+      let vendorTxs = loggedTransactions.filter(t => t.vendor_name === vendorVal);
+      currentVendorGrns = [...new Set(vendorTxs.map(t => t.truck_id))].sort();
+
+      if (currentVendorGrns.length === 0) return;
+
+      activeVendorGrnIndex = 0;
+      renderVendorGrnChips();
+      renderTraceabilitySheetForGrn(currentVendorGrns[0]);
+    }
+
+    function renderVendorGrnChips() {
+      const bar = document.getElementById('vendorGrnToggleBar');
+      const container = document.getElementById('grnChipContainer');
+      bar.classList.remove('hidden');
+
+      container.innerHTML = currentVendorGrns.map((grn, idx) => `
+        <button onclick="switchVendorGrnChip(${idx})" class="px-3 py-1 rounded text-xs font-bold transition-all shadow-sm ${idx === activeVendorGrnIndex ? 'bg-emerald-800 text-white ring-2 ring-emerald-600' : 'bg-white text-emerald-900 hover:bg-emerald-100 border border-emerald-300'}">
+          GRN: ${grn} (${idx + 1}/${currentVendorGrns.length})
+        </button>
+      `).join('');
+    }
+
+    function switchVendorGrnChip(idx) {
+      activeVendorGrnIndex = idx;
+      renderVendorGrnChips();
+      renderTraceabilitySheetForGrn(currentVendorGrns[idx]);
+    }
+
+    function renderTraceabilitySheet() {
+      const truckVal = document.getElementById('filterTruck').value;
+      const vendorVal = document.getElementById('filterVendor').value;
+
+      if (truckVal) {
+        renderTraceabilitySheetForGrn(truckVal);
+      } else if (vendorVal && currentVendorGrns.length > 0) {
+        renderTraceabilitySheetForGrn(currentVendorGrns[activeVendorGrnIndex]);
+      }
+    }
+
+    function renderTraceabilitySheetForGrn(grnId) {
+      let filtered = loggedTransactions.filter(t => t.truck_id === grnId);
+      if (filtered.length === 0) return;
+
+      let first = filtered[0];
+      document.getElementById('pdfVendorName').innerText = first.vendor_name;
+      document.getElementById('pdfTruckId').innerText = first.truck_id;
+      document.getElementById('pdfPlaceDate').innerText = `${first.place}, ${first.date}`;
+      document.getElementById('pdfLoggedBy').innerText = first.logged_by;
+
+      const sigPreviewDiv = document.getElementById('pdfSigImgPreview');
+      if (first.vendor_sig_base64) {
+        sigPreviewDiv.innerHTML = `<img src="${first.vendor_sig_base64}" class="h-10 object-contain mb-1" alt="Vendor Signature">`;
+      } else {
+        sigPreviewDiv.innerHTML = `<div class="h-10"></div>`;
+      }
+
+      const tbody = document.getElementById('pdfTableBody');
+      tbody.innerHTML = '';
+      let grantTotalKg = 0;
+      const mult = unitMultiplier();
+
+      const itemMap = {};
+      filtered.forEach(t => {
+        t.items.forEach(i => {
+          const key = i.ref_number || i.village_id;
+          if (!itemMap[key]) {
+            itemMap[key] = {
+              ref_number: i.ref_number,
+              village_name: i.village_name,
+              block: i.block,
+              allocated_kg: 0
+            };
+          }
+          itemMap[key].allocated_kg += i.allocated_kg;
+        });
+      });
+
+      Object.values(itemMap).forEach(i => {
+        grantTotalKg += i.allocated_kg;
+        let dispQty = (i.allocated_kg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+        let tr = document.createElement('tr');
+        tr.className = "border-b border-gray-300";
+        tr.innerHTML = `
+          <td class="border-r border-gray-800 p-2 font-mono">${i.ref_number}</td>
+          <td class="border-r border-gray-800 p-2 font-bold">${i.village_name}</td>
+          <td class="border-r border-gray-800 p-2">${i.block}</td>
+          <td class="p-2 text-right font-bold">${dispQty}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('pdfTotalQty').innerText = (grantTotalKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' ' + currentUnit;
+    }
+
+    // MANAGER PIN-PROTECTED DELETION
+    function deleteSelectedGrn() {
+      let activeGrnId = document.getElementById('filterTruck').value;
+      if (!activeGrnId && currentVendorGrns.length > 0) {
+        activeGrnId = currentVendorGrns[activeVendorGrnIndex];
+      }
+
+      if (!activeGrnId) {
+        alert("Please select a Traceability Sheet / Truck ID to delete.");
+        return;
+      }
+
+      const enteredPin = prompt(`🔒 JUNIOR MANAGER AUTHORIZATION REQUIRED:\n\nEnter Manager Security PIN to delete Traceability Sheet '${activeGrnId}':`);
+      if (enteredPin === null) return;
+
+      if (enteredPin !== MANAGER_DELETE_PIN) {
+        alert("❌ ACCESS DENIED: Invalid Junior Manager Security PIN. Deletion cancelled.");
+        return;
+      }
+
+      loggedTransactions = loggedTransactions.filter(t => t.truck_id !== activeGrnId);
+      localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
+
+      recalculateMasterSourcedFromLogs();
+      populateSearchDropdowns();
+
+      document.getElementById('filterTruck').value = "";
+      document.getElementById('filterVendor').value = "";
+      document.getElementById('vendorGrnToggleBar').classList.add('hidden');
+
+      document.getElementById('pdfVendorName').innerText = '-';
+      document.getElementById('pdfTruckId').innerText = '-';
+      document.getElementById('pdfPlaceDate').innerText = '-';
+      document.getElementById('pdfLoggedBy').innerText = '-';
+      document.getElementById('pdfSigImgPreview').innerHTML = `<div class="h-10"></div>`;
+      document.getElementById('pdfTableBody').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Select a Truck ID or Vendor above to render certificate.</td></tr>`;
+      document.getElementById('pdfTotalQty').innerText = '0';
+
+      alert(`✅ Traceability Sheet '${activeGrnId}' deleted successfully!`);
+    }
+
+    // A4 PAGE BUILDER WITH EMBEDDED DIGITAL SIGNATURE
+    function buildSinglePageHtml(first, pageItems, totalDisp, currentPage, totalPages, isFirstPageOverall = false) {
+      let rowsHtml = '';
+      pageItems.forEach(i => {
+        let dispQty = (i.allocated_kg * unitMultiplier()).toLocaleString(undefined, {maximumFractionDigits: 2});
+        rowsHtml += `
+          <tr style="border-bottom: 1px solid #111827;">
+            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-family: monospace; font-size: 12px; font-weight: bold; width: 20%; box-sizing: border-box; word-break: break-word;">${i.ref_number}</td>
+            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-weight: bold; font-size: 12px; width: 40%; box-sizing: border-box; word-break: break-word;">${i.village_name}</td>
+            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-size: 12px; font-weight: 500; width: 22%; box-sizing: border-box; word-break: break-word;">${i.block}</td>
+            <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-size: 12px; width: 18%; box-sizing: border-box; white-space: nowrap;">${dispQty}</td>
+          </tr>
+        `;
+      });
+
+      const breakStyle = isFirstPageOverall ? '' : 'page-break-before: always; break-before: page;';
+
+      const sigImageTag = first.vendor_sig_base64 
+        ? `<img src="${first.vendor_sig_base64}" style="height: 36px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
+        : `<div style="height: 36px;"></div>`;
+
+      return `
+        <div style="width: 720px; min-height: 1000px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto; border: 1px solid #d1d5db;">
+          <div>
+            <div style="text-align: center; font-weight: bold; font-size: 17px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase;">
+              Traceability Sheet
+            </div>
+            
+            <div style="border: 1px solid #111827; margin-bottom: 12px; font-size: 12px;">
+              <div style="display: flex; border-bottom: 1px solid #111827;">
+                <div style="width: 33.33%; padding: 5px 8px; font-weight: bold; border-right: 1px solid #111827;">Vendor Name</div>
+                <div style="width: 66.66%; padding: 5px 8px; font-weight: 600;">${first.vendor_name || '-'}</div>
+              </div>
+              <div style="display: flex;">
+                <div style="width: 33.33%; padding: 5px 8px; font-weight: bold; border-right: 1px solid #111827;">Truck Arrival ID / GRN</div>
+                <div style="width: 66.66%; padding: 5px 8px; font-family: monospace; font-weight: bold;">${first.truck_id || '-'}</div>
+              </div>
+            </div>
+
+            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; font-size: 12px; margin-bottom: 12px;">
+              <colgroup>
+                <col style="width: 20%;">
+                <col style="width: 40%;">
+                <col style="width: 22%;">
+                <col style="width: 18%;">
+              </colgroup>
+              <thead>
+                <tr style="background-color: #f3f4f6; border-bottom: 1.5px solid #111827;">
+                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 20%;">Ref Number</th>
+                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 40%;">Village Name</th>
+                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 22%;">Block</th>
+                  <th style="padding: 6px; text-align: right; font-size: 12px; width: 18%;">Qty (in ${currentUnit})</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+              <tfoot>
+                <tr style="border-top: 2px solid #111827; font-weight: bold; background-color: #ffffff;">
+                  <td colspan="3" style="padding: 6px; text-align: right; border-right: 1px solid #111827; text-transform: uppercase; font-size: 12px;">Total Qty (in ${currentUnit})</td>
+                  <td style="padding: 6px; text-align: right; font-size: 12px; white-space: nowrap;">${totalDisp} ${currentUnit}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <div>
+            <p style="font-size: 10px; font-style: italic; color: #374151; margin-top: 10px; margin-bottom: 16px;">
+              I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.
+            </p>
+
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; padding-top: 10px; border-top: 1px solid #111827; margin-top: 10px;">
+              <div>
+                <p style="font-size: 12px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
+              </div>
+              <div style="text-align: center;">
+                ${sigImageTag}
+                <div style="width: 180px; border-top: 1px solid #111827; padding-top: 4px; font-weight: bold; font-size: 12px;">Signature of Vendor</div>
+                <div style="font-size: 10px; color: #4b5563; margin-top: 2px;">Logged By: ${first.logged_by || 'Chethan H C'} (Page ${currentPage} of ${totalPages})</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // MULTI-PAGE SINGLE GRN PDF EXPORT
+    async function exportToPdf() {
+      let activeGrnId = document.getElementById('filterTruck').value;
+      if (!activeGrnId && currentVendorGrns.length > 0) {
+        activeGrnId = currentVendorGrns[activeVendorGrnIndex];
+      }
+
+      if (!activeGrnId) {
+        alert("Please select a Truck ID or Vendor first to generate PDF.");
+        return;
+      }
+
+      let filtered = loggedTransactions.filter(t => t.truck_id === activeGrnId);
+
+      if (filtered.length === 0) return;
+
+      let first = filtered[0];
+      const grnNumber = first.truck_id || 'GRN_Report';
+      const mult = unitMultiplier();
+
+      const itemMap = {};
+      let totalQtyKg = 0;
+      filtered.forEach(t => {
+        if (t.items && Array.isArray(t.items)) {
+          t.items.forEach(i => {
+            const key = i.ref_number || i.village_id;
+            if (!itemMap[key]) {
+              itemMap[key] = { ...i, allocated_kg: 0 };
+            }
+            itemMap[key].allocated_kg += i.allocated_kg;
+          });
+        }
+      });
+
+      const allItems = Object.values(itemMap);
+      allItems.forEach(i => totalQtyKg += i.allocated_kg);
+      const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+      const pageSize = 14;
+      const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+
+      const pdfContainer = document.getElementById('pdfContainer');
+
+      let multiPageHtml = '';
+      for (let p = 0; p < totalPages; p++) {
+        const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+        multiPageHtml += buildSinglePageHtml(first, pageItems, totalDisp, p + 1, totalPages, p === 0);
+      }
+
+      pdfContainer.innerHTML = multiPageHtml;
+
+      window.scrollTo(0, 0);
+      const opt = {
+        margin:       [0.2, 0.2, 0.2, 0.2],
+        filename:     `${grnNumber}_Traceability_Sheet_${currentUnit}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+      };
+
+      try {
+        await html2pdf().set(opt).from(pdfContainer).save();
+      } finally {
+        renderTraceabilitySheet();
+      }
+    }
+
+    // CONSOLIDATED DATE-TO-DATE PDF GENERATOR
+    async function downloadConsolidatedPdf() {
+      const fromDate = document.getElementById('pdfFromDate').value;
+      const toDate = document.getElementById('pdfToDate').value;
+
+      if (!fromDate || !toDate) {
+        alert("Please select both 'From Date' and 'To Date'.");
+        return;
+      }
+
+      let filtered = loggedTransactions.filter(t => {
+        if (!t.date) return false;
+        let d = t.date.substring(0, 10);
+        return d >= fromDate && d <= toDate;
+      });
+
+      if (filtered.length === 0) {
+        alert(`No logged transactions found between ${fromDate} and ${toDate}.`);
+        return;
+      }
+
+      filtered.sort((a, b) => (a.date + a.truck_id).localeCompare(b.date + b.truck_id));
+
+      const pdfContainer = document.getElementById('pdfContainer');
+      const mult = unitMultiplier();
+
+      let multiPageHtml = '';
+      let isVeryFirstPage = true;
+
+      filtered.forEach((tx) => {
+        const itemMap = {};
+        let totalQtyKg = 0;
+
+        if (tx.items && Array.isArray(tx.items)) {
+          tx.items.forEach(i => {
+            const key = i.ref_number || i.village_id;
+            if (!itemMap[key]) {
+              itemMap[key] = { ...i, allocated_kg: 0 };
+            }
+            itemMap[key].allocated_kg += i.allocated_kg;
+          });
+        }
+
+        const allItems = Object.values(itemMap);
+        allItems.forEach(i => totalQtyKg += i.allocated_kg);
+        const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+        const pageSize = 14;
+        const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+
+        for (let p = 0; p < totalPages; p++) {
+          const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+          multiPageHtml += buildSinglePageHtml(tx, pageItems, totalDisp, p + 1, totalPages, isVeryFirstPage);
+          isVeryFirstPage = false;
+        }
+      });
+
+      pdfContainer.innerHTML = multiPageHtml;
+
+      window.scrollTo(0, 0);
+      const opt = {
+        margin:       [0.2, 0.2, 0.2, 0.2],
+        filename:     `Consolidated_Traceability_Report_${fromDate}_to_${toDate}_${currentUnit}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+      };
+
+      try {
+        await html2pdf().set(opt).from(pdfContainer).save();
+      } finally {
+        renderTraceabilitySheet();
+      }
+    }
+
+    // CONSOLIDATED VENDOR-SPECIFIC PDF GENERATOR
+    async function downloadVendorConsolidatedPdf() {
+      const selectedVendor = document.getElementById('filterConsolidatedVendor').value;
+
+      if (!selectedVendor) {
+        alert("Please select a vendor first.");
+        return;
+      }
+
+      let filtered = loggedTransactions.filter(t => t.vendor_name === selectedVendor);
+
+      if (filtered.length === 0) {
+        alert(`No logged transactions found for vendor: ${selectedVendor}.`);
+        return;
+      }
+
+      filtered.sort((a, b) => (a.date + a.truck_id).localeCompare(b.date + b.truck_id));
+
+      const pdfContainer = document.getElementById('pdfContainer');
+      const mult = unitMultiplier();
+
+      let multiPageHtml = '';
+      let isVeryFirstPage = true;
+
+      filtered.forEach((tx) => {
+        const itemMap = {};
+        let totalQtyKg = 0;
+
+        if (tx.items && Array.isArray(tx.items)) {
+          tx.items.forEach(i => {
+            const key = i.ref_number || i.village_id;
+            if (!itemMap[key]) {
+              itemMap[key] = { ...i, allocated_kg: 0 };
+            }
+            itemMap[key].allocated_kg += i.allocated_kg;
+          });
+        }
+
+        const allItems = Object.values(itemMap);
+        allItems.forEach(i => totalQtyKg += i.allocated_kg);
+        const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+        const pageSize = 14;
+        const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+
+        for (let p = 0; p < totalPages; p++) {
+          const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+          multiPageHtml += buildSinglePageHtml(tx, pageItems, totalDisp, p + 1, totalPages, isVeryFirstPage);
+          isVeryFirstPage = false;
+        }
+      });
+
+      pdfContainer.innerHTML = multiPageHtml;
+
+      window.scrollTo(0, 0);
+      const opt = {
+        margin:       [0.2, 0.2, 0.2, 0.2],
+        filename:     `Consolidated_Vendor_Report_${selectedVendor.replace(/\s+/g, '_')}_${currentUnit}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'] }
+      };
+
+      try {
+        await html2pdf().set(opt).from(pdfContainer).save();
+      } finally {
+        renderTraceabilitySheet();
+      }
+    }
+
+    function exportLoggedCsv() {
+      const mult = unitMultiplier();
+      let csv = `Date,Place,Vendor_Name,Truck_ID,Logged_By,Ref_Number,Village_Name,Block,Allocated_Qty_${currentUnit}\n`;
+      loggedTransactions.forEach(t => {
+        const itemMap = {};
+        t.items.forEach(i => {
+          const key = i.ref_number || i.village_id;
+          if (!itemMap[key]) {
+            itemMap[key] = { ...i, allocated_kg: 0 };
+          }
+          itemMap[key].allocated_kg += i.allocated_kg;
+        });
+
+        Object.values(itemMap).forEach(i => {
+          let dispQty = (i.allocated_kg * mult).toFixed(2);
+          csv += `"${t.date}","${t.place}","${t.vendor_name}","${t.truck_id}","${t.logged_by}","${i.ref_number}","${i.village_name}","${i.block}",${dispQty}\n`;
+        });
+      });
+      const blob = document.createElement('a');
+      blob.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      blob.download = `All_Logged_Traceability_Data_${currentUnit}.csv`;
+      blob.click();
+    }
+
+    function saveWebhookUrl() {
+      const url = document.getElementById('webhookUrl').value;
+      localStorage.setItem('pongamia_webhook', url);
+      fetchCloudLedger();
+      alert("Cloud Sync Webhook saved!");
+    }
+
+    function syncSingleTransactionToCloud(tx) {
+      const url = localStorage.getItem('pongamia_webhook');
+      if (!url) return;
+      fetch(url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tx)
+      });
+    }
+
+    function clearAllLogs() {
+      const confirmClear = confirm("⚠️ WARNING: You are about to clear all locally saved transaction logs on this device.\n\nData saved on the Google Sheet will NOT be affected.\n\nDo you really want to clear local cache?");
+      if (confirmClear) {
+        localStorage.removeItem('pongamia_logs');
+        loggedTransactions = [];
+        alert("Local cache cleared successfully.");
+        location.reload();
+      }
+    }
+  </script>
+</body>
+</html>
