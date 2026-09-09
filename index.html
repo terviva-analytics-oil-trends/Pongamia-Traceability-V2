@@ -70,17 +70,17 @@
         <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
           <h4 class="font-bold text-emerald-900 uppercase mb-1">Tab 1: Log Sourcing Transaction</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
-            <li><strong>Add Non-Surveyed Village:</strong> Click <em>➕ Add Non-Surveyed Village</em> to register unsurveyed locations under new or existing districts/blocks.</li>
-            <li><strong>Vendor Signature Image:</strong> Attach a PNG/JPG signature image in Tab 1 to automatically embed digital signatures into printable A4 PDFs.</li>
-            <li><strong>Header Entry:</strong> Enter Vendor, GRN (auto-UPPERCASE), Total Qty, Date, Location, Staff Name.</li>
-            <li><strong>Proximity Search:</strong> Input Vendor Lat/Lng, set radius (1-100 km), click <em>Find Villages</em>.</li>
+            <li><strong>Auto-Aggregation:</strong> Separate entries for the same non-surveyed village automatically sum together into 1 row.</li>
+            <li><strong>Usage Tracker:</strong> The <em>Usage Count</em> column shows how many times a village has been referenced across all GRNs.</li>
+            <li><strong>Input Retention:</strong> Entering allocation quantities across multiple rows keeps all typed numbers intact when clicking Add.</li>
+            <li><strong>Form Auto-Reset & Safety:</strong> Successfully saved transactions auto-clear the form and prevent duplicate sync submissions.</li>
           </ul>
         </div>
         <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
-          <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Protected Management</h4>
+          <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Non-Surveyed Reports</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
-            <li><strong>Protected Deletion:</strong> Click <em>🗑️ Delete Selected Sheet</em>. Deletion requires Junior Manager Security PIN authorization (Default PIN: `1234`).</li>
-            <li><strong>Digital Signature PDFs:</strong> Downloaded A4 certificates render attached signature images directly in the signature box.</li>
+            <li><strong>Non-Surveyed Audit Export:</strong> Download a dedicated CSV listing only non-surveyed village allocations tagged with their corresponding GRN numbers.</li>
+            <li><strong>Protected Deletion:</strong> Requires Junior Manager Security PIN (`1234`).</li>
           </ul>
         </div>
       </div>
@@ -102,31 +102,37 @@
 
       <div class="space-y-3 text-xs">
         <div>
-          <label class="block text-gray-600 font-medium">Village Name *</label>
-          <input type="text" id="nsVillageName" placeholder="e.g. New Ramanagara" class="border rounded p-2 w-full mt-0.5">
+          <label class="block text-gray-600 font-medium">Select Previously Added Non-Surveyed Village (Optional)</label>
+          <select id="nsExistingDropdown" onchange="loadExistingAdhocVillage(this.value)" class="border rounded p-2 w-full mt-0.5 bg-amber-50 font-semibold">
+            <option value="">-- Or Create New Below --</option>
+          </select>
         </div>
-        <div class="grid grid-cols-2 gap-2">
+
+        <div class="border-t pt-2 space-y-3">
           <div>
-            <label class="block text-gray-600 font-medium">District *</label>
-            <input type="text" id="nsDistrict" placeholder="e.g. Tumakuru" class="border rounded p-2 w-full mt-0.5">
+            <label class="block text-gray-600 font-medium">Village Name *</label>
+            <input type="text" id="nsVillageName" placeholder="e.g. Ramanagara" oninput="autoCapitalize(this)" class="border rounded p-2 w-full mt-0.5">
           </div>
-          <div>
-            <label class="block text-gray-600 font-medium">Block / Taluk *</label>
-            <input type="text" id="nsBlock" placeholder="e.g. Sira" class="border rounded p-2 w-full mt-0.5">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-gray-600 font-medium">District *</label>
+              <input type="text" id="nsDistrict" list="nsDistrictDatalist" placeholder="e.g. Tumakuru" oninput="autoCapitalize(this)" class="border rounded p-2 w-full mt-0.5">
+              <datalist id="nsDistrictDatalist"></datalist>
+            </div>
+            <div>
+              <label class="block text-gray-600 font-medium">Block / Taluk *</label>
+              <input type="text" id="nsBlock" list="nsBlockDatalist" placeholder="e.g. Sira" oninput="autoCapitalize(this)" class="border rounded p-2 w-full mt-0.5">
+              <datalist id="nsBlockDatalist"></datalist>
+            </div>
           </div>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-gray-600 font-medium">Gram Panchayat</label>
-            <input type="text" id="nsGp" placeholder="e.g. Sira GP" class="border rounded p-2 w-full mt-0.5">
-          </div>
-          <div>
-            <label class="block text-gray-600 font-medium">Est. Max Capacity (KG)</label>
-            <input type="number" id="nsMaxCap" value="5000" class="border rounded p-2 w-full mt-0.5 font-bold">
+            <input type="text" id="nsGp" placeholder="e.g. Sira GP" oninput="autoCapitalize(this)" class="border rounded p-2 w-full mt-0.5">
           </div>
         </div>
+
         <p class="text-[10px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 italic">
-          * This village will be flagged as <strong>Non-Surveyed (Ad-Hoc)</strong> in traceability certificates and cloud logs.
+          * Marked as <strong>Non-Surveyed (Ad-Hoc)</strong> in traceability logs and certificates.
         </p>
       </div>
 
@@ -165,7 +171,7 @@
         </div>
       </div>
 
-      <!-- Transaction Header Form with Signature File Upload -->
+      <!-- Transaction Header Form -->
       <div class="bg-white p-4 rounded-lg shadow space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-sm font-semibold text-gray-700 uppercase">Transaction Header Details</h2>
@@ -177,7 +183,7 @@
         <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
           <div>
             <label class="block text-xs font-medium text-gray-600">Vendor Name</label>
-            <input type="text" id="txVendor" placeholder="e.g. Naveen" class="border rounded p-2 text-sm w-full">
+            <input type="text" id="txVendor" placeholder="e.g. Naveen" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm w-full">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600">Truck Arrival ID / GRN</label>
@@ -190,13 +196,13 @@
           <div>
             <label class="block text-xs font-medium text-gray-600">Date & Place</label>
             <div class="flex space-x-1">
-              <input type="text" id="txPlace" placeholder="Madhugiri" class="border rounded p-2 text-sm w-1/2">
+              <input type="text" id="txPlace" placeholder="Madhugiri" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm w-1/2">
               <input type="date" id="txDate" class="border rounded p-2 text-sm w-1/2">
             </div>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600">Logged By (Staff)</label>
-            <input type="text" id="txLoggedBy" placeholder="Chethan H C" class="border rounded p-2 text-sm w-full">
+            <input type="text" id="txLoggedBy" placeholder="Chethan H C" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm w-full">
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600">Upload Vendor Signature</label>
@@ -271,7 +277,7 @@
         </div>
       </div>
 
-      <!-- Nearby Village Capacity Table -->
+      <!-- Nearby Village Capacity Table (With Usage Count Column) -->
       <div class="bg-white rounded-lg shadow overflow-hidden">
         <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
           <div class="flex items-center space-x-3">
@@ -300,6 +306,7 @@
                 <th class="p-2">Ref No</th>
                 <th class="p-2">District / Block / GP</th>
                 <th class="p-2">Status</th>
+                <th class="p-2 text-center">Usage Count</th>
                 <th class="p-2">Distance</th>
                 <th class="p-2">Max Cap (<span class="unitLbl">KG</span>)</th>
                 <th class="p-2">Max Permitted (+10%)</th>
@@ -309,7 +316,7 @@
               </tr>
             </thead>
             <tbody id="villageTableBody" class="divide-y divide-gray-200">
-              <tr><td colspan="10" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>
+              <tr><td colspan="11" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>
             </tbody>
           </table>
         </div>
@@ -359,6 +366,9 @@
           <button onclick="exportToPdf()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-4 py-2 rounded font-semibold">Download Selected A4 PDF</button>
           <button onclick="deleteSelectedGrn()" class="bg-red-700 hover:bg-red-800 text-white text-xs px-4 py-2 rounded font-semibold flex items-center space-x-1">
             <span>🔒 Delete Selected Sheet (PIN Protected)</span>
+          </button>
+          <button onclick="exportNonSurveyedAuditCsv()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-4 py-2 rounded font-semibold">
+            📄 Export Non-Surveyed Villages Audit (CSV)
           </button>
           <button onclick="exportLoggedCsv()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-4 py-2 rounded font-semibold">Export All Logged Data (CSV)</button>
         </div>
@@ -479,12 +489,12 @@
   <script>
     let masterVillages = [];
     let loggedTransactions = JSON.parse(localStorage.getItem('pongamia_logs') || '[]');
+    let adhocVillagesStore = JSON.parse(localStorage.getItem('pongamia_adhoc_villages') || '[]');
     let currentFilteredVillages = [];
     let activeTxItems = [];
     let currentUnit = 'KG';
-    let uploadedVendorSigBase64 = ""; // Stores digital signature image string
+    let uploadedVendorSigBase64 = "";
 
-    // MANAGER DELETION SECURITY PIN (Change '1234' to your team secret PIN)
     const MANAGER_DELETE_PIN = "1234";
 
     let currentVendorGrns = [];
@@ -500,17 +510,55 @@
         document.getElementById('webhookAlertBanner').classList.remove('hidden');
       }
       document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
+      populateAdhocModalDropdowns();
     });
+
+    function autoCapitalize(input) {
+      if (!input || !input.value) return;
+      let val = input.value;
+      input.value = val.replace(/\b\w/g, l => l.toUpperCase());
+    }
 
     function toggleGuideModal() {
       document.getElementById('guideModal').classList.toggle('hidden');
     }
 
     function toggleNonSurveyedModal() {
+      populateAdhocModalDropdowns();
       document.getElementById('nonSurveyedModal').classList.toggle('hidden');
     }
 
-    // SIGNATURE FILE UPLOAD HANDLER
+    function populateAdhocModalDropdowns() {
+      const dropdown = document.getElementById('nsExistingDropdown');
+      const distDatalist = document.getElementById('nsDistrictDatalist');
+      const blockDatalist = document.getElementById('nsBlockDatalist');
+
+      dropdown.innerHTML = '<option value="">-- Or Create New Below --</option>';
+      distDatalist.innerHTML = '';
+      blockDatalist.innerHTML = '';
+
+      adhocVillagesStore.forEach((v, idx) => {
+        dropdown.innerHTML += `<option value="${idx}">${v.village_name} (${v.district} / ${v.block})</option>`;
+      });
+
+      let allDistricts = [...new Set([...masterVillages.map(m => m.district), ...adhocVillagesStore.map(a => a.district)])].filter(Boolean).sort();
+      let allBlocks = [...new Set([...masterVillages.map(m => m.block), ...adhocVillagesStore.map(a => a.block)])].filter(Boolean).sort();
+
+      allDistricts.forEach(d => { distDatalist.innerHTML += `<option value="${d}">`; });
+      allBlocks.forEach(b => { blockDatalist.innerHTML += `<option value="${b}">`; });
+    }
+
+    function loadExistingAdhocVillage(idxVal) {
+      if (idxVal === "") return;
+      const v = adhocVillagesStore[parseInt(idxVal)];
+      if (!v) return;
+
+      document.getElementById('nsVillageName').value = v.village_name;
+      document.getElementById('nsDistrict').value = v.district;
+      document.getElementById('nsBlock').value = v.block;
+      document.getElementById('nsGp').value = v.gp || '';
+    }
+
     function handleSignatureUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -523,40 +571,51 @@
       reader.readAsDataURL(file);
     }
 
-    // SUBMIT NEW NON-SURVEYED VILLAGE
     function submitNonSurveyedVillage() {
       const vName = document.getElementById('nsVillageName').value.trim();
       const dist = document.getElementById('nsDistrict').value.trim();
       const block = document.getElementById('nsBlock').value.trim();
       const gp = document.getElementById('nsGp').value.trim() || 'Ad-Hoc GP';
-      const maxCap = parseFloat(document.getElementById('nsMaxCap').value) || 5000;
 
       if (!vName || !dist || !block) {
         alert("Please complete Village Name, District, and Block.");
         return;
       }
 
-      const refNo = 'adhoc_' + Math.random().toString(36).substring(2, 8);
+      let existingObj = adhocVillagesStore.find(a => a.village_name.toLowerCase() === vName.toLowerCase() && a.block.toLowerCase() === block.toLowerCase());
+      
+      let targetObj;
 
-      const newVillageObj = {
-        ref_number: refNo,
-        village_id: `${dist}_${block}_${vName}`,
-        village_name: vName,
-        district: dist,
-        block: block,
-        gp: gp,
-        status: 'Non-Surveyed (Ad-Hoc)',
-        lat: parseFloat(document.getElementById('vendorLat').value) || 0,
-        lng: parseFloat(document.getElementById('vendorLng').value) || 0,
-        est_trees: Math.round(maxCap / 3),
-        max_cap_kg: maxCap,
-        sourced_kg: 0,
-        remaining_kg: maxCap,
-        dist: 0
-      };
+      if (existingObj) {
+        targetObj = existingObj;
+      } else {
+        const refNo = 'adhoc_' + Math.random().toString(36).substring(2, 8);
+        targetObj = {
+          ref_number: refNo,
+          village_id: `${dist}_${block}_${vName}`,
+          village_name: vName,
+          district: dist,
+          block: block,
+          gp: gp,
+          status: 'Non-Surveyed (Ad-Hoc)',
+          lat: parseFloat(document.getElementById('vendorLat').value) || 0,
+          lng: parseFloat(document.getElementById('vendorLng').value) || 0,
+          est_trees: 0,
+          max_cap_kg: 99999999,
+          sourced_kg: getSourcedFromLogs(refNo),
+          remaining_kg: 99999999,
+          dist: 0
+        };
 
-      masterVillages.push(newVillageObj);
-      currentFilteredVillages.unshift(newVillageObj);
+        adhocVillagesStore.push(targetObj);
+        localStorage.setItem('pongamia_adhoc_villages', JSON.stringify(adhocVillagesStore));
+      }
+
+      let inMaster = masterVillages.find(m => m.ref_number === targetObj.ref_number);
+      if (!inMaster) masterVillages.unshift(targetObj);
+
+      let inFiltered = currentFilteredVillages.find(f => f.ref_number === targetObj.ref_number);
+      if (!inFiltered) currentFilteredVillages.unshift(targetObj);
 
       renderVillageTable();
       toggleNonSurveyedModal();
@@ -565,8 +624,9 @@
       document.getElementById('nsDistrict').value = '';
       document.getElementById('nsBlock').value = '';
       document.getElementById('nsGp').value = '';
+      document.getElementById('nsExistingDropdown').value = '';
 
-      alert(`Village '${vName}' registered successfully as Non-Surveyed (Ad-Hoc)!`);
+      alert(`Village '${vName}' added to allocation table as Non-Surveyed (Ad-Hoc)!`);
     }
 
     function changeUnit(unit) {
@@ -646,6 +706,13 @@
           remaining_kg: maxCapKg - sourcedKg
         });
       }
+
+      adhocVillagesStore.forEach(adhoc => {
+        if (!masterVillages.find(m => m.ref_number === adhoc.ref_number)) {
+          masterVillages.push({ ...adhoc, sourced_kg: getSourcedFromLogs(adhoc.ref_number) });
+        }
+      });
+
       document.getElementById('masterStatus').innerText = `Loaded ${masterVillages.length} master villages!`;
     }
 
@@ -661,12 +728,25 @@
       return total;
     }
 
+    // HELPER: COUNTS HOW MANY TIMES A VILLAGE IS USED IN TRACEABILITY SHEETS
+    function getVillageUsageCount(ref) {
+      let count = 0;
+      loggedTransactions.forEach(t => {
+        if (t.items && Array.isArray(t.items)) {
+          if (t.items.some(i => i.ref_number === ref)) count++;
+        }
+      });
+      return count;
+    }
+
     function recalculateMasterSourcedFromLogs() {
       if (!masterVillages || masterVillages.length === 0) return;
       masterVillages.forEach(v => {
         let sourcedKg = getSourcedFromLogs(v.ref_number);
         v.sourced_kg = sourcedKg;
-        v.remaining_kg = v.max_cap_kg - sourcedKg;
+        if (!v.status.includes('Non-Surveyed')) {
+          v.remaining_kg = v.max_cap_kg - sourcedKg;
+        }
       });
       if (currentFilteredVillages.length > 0) {
         currentFilteredVillages.forEach(fv => {
@@ -702,12 +782,25 @@
         return;
       }
 
+      captureTableInputs();
+
       currentFilteredVillages = masterVillages.map(v => {
         let dist = haversine(vLat, vLng, v.lat, v.lng);
         return { ...v, dist: dist };
-      }).filter(v => v.dist <= radius).sort((a,b) => a.dist - b.dist);
+      }).filter(v => v.dist <= radius || v.status.includes('Non-Surveyed')).sort((a,b) => a.dist - b.dist);
 
       renderVillageTable();
+    }
+
+    const tableInputState = {};
+
+    function captureTableInputs() {
+      currentFilteredVillages.forEach((v, idx) => {
+        const inputEl = document.getElementById(`alloc_${idx}`);
+        if (inputEl && inputEl.value !== "") {
+          tableInputState[v.ref_number] = inputEl.value;
+        }
+      });
     }
 
     function renderVillageTable() {
@@ -716,36 +809,41 @@
       document.getElementById('resultCount').innerText = `${currentFilteredVillages.length} Villages within radius`;
 
       if (currentFilteredVillages.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="p-4 text-center text-gray-400">Load Master CSV data to begin allocation.</td></tr>`;
         return;
       }
 
       const mult = unitMultiplier();
 
       currentFilteredVillages.forEach((v, idx) => {
-        let maxCapDisp = (v.max_cap_kg * mult).toFixed(2);
-        let maxPermittedDisp = ((v.max_cap_kg * 1.10) * mult).toFixed(2);
+        let isAdhoc = v.status && v.status.includes('Non-Surveyed');
+        let maxCapDisp = isAdhoc ? 'Unlimited' : (v.max_cap_kg * mult).toFixed(2);
+        let maxPermittedDisp = isAdhoc ? 'Unlimited' : ((v.max_cap_kg * 1.10) * mult).toFixed(2);
         let sourcedDisp = (v.sourced_kg * mult).toFixed(2);
-        let remVal = Math.max(0, (v.remaining_kg * mult));
-        let remDisp = remVal.toFixed(2);
+        let remVal = isAdhoc ? 'Unlimited' : Math.max(0, (v.remaining_kg * mult));
+        let remDisp = isAdhoc ? 'Unlimited' : remVal.toFixed(2);
 
-        let remStyleClass = remVal <= 0 ? "text-gray-500 font-bold bg-gray-100 px-1.5 py-0.5 rounded" : "text-emerald-700 font-extrabold";
+        let usageCount = getVillageUsageCount(v.ref_number);
+        let usageBadgeClass = usageCount > 3 ? "bg-red-100 text-red-800 font-bold" : (usageCount > 0 ? "bg-amber-100 text-amber-900 font-bold" : "bg-gray-100 text-gray-600");
+
+        let savedVal = tableInputState[v.ref_number] || '';
 
         let tr = document.createElement('tr');
-        tr.className = "hover:bg-gray-50";
+        tr.className = isAdhoc ? "bg-amber-50/50 hover:bg-amber-100/50" : "hover:bg-gray-50";
         tr.innerHTML = `
           <td class="p-2 font-bold text-gray-800">${v.village_name}</td>
           <td class="p-2 font-mono text-gray-500">${v.ref_number}</td>
           <td class="p-2 text-gray-600">${v.district} / ${v.block} / ${v.gp}</td>
-          <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] ${v.status.includes('Non-Surveyed') ? 'bg-amber-100 text-amber-900 font-bold' : (v.status.includes('Audit') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800')}">${v.status}</span></td>
-          <td class="p-2 font-semibold">${v.dist.toFixed(2)} km</td>
-          <td class="p-2 font-bold">${maxCapDisp} ${currentUnit}</td>
-          <td class="p-2 text-purple-700 font-bold">${maxPermittedDisp} ${currentUnit}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] ${isAdhoc ? 'bg-amber-200 text-amber-900 font-bold' : (v.status.includes('Audit') ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800')}">${v.status}</span></td>
+          <td class="p-2 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] ${usageBadgeClass}">⚡ ${usageCount} GRN(s)</span></td>
+          <td class="p-2 font-semibold">${isAdhoc ? 'Ad-Hoc' : v.dist.toFixed(2) + ' km'}</td>
+          <td class="p-2 font-bold">${maxCapDisp} ${isAdhoc ? '' : currentUnit}</td>
+          <td class="p-2 text-purple-700 font-bold">${maxPermittedDisp} ${isAdhoc ? '' : currentUnit}</td>
           <td class="p-2 text-amber-700">${sourcedDisp} ${currentUnit}</td>
-          <td class="p-2"><span class="${remStyleClass}">${remDisp} ${currentUnit}</span></td>
+          <td class="p-2"><span class="text-emerald-700 font-extrabold">${remDisp} ${isAdhoc ? '' : currentUnit}</span></td>
           <td class="p-2">
             <div class="flex space-x-1">
-              <input type="number" step="any" id="alloc_${idx}" placeholder="${currentUnit}" class="border rounded p-1 w-20 text-xs">
+              <input type="number" step="any" id="alloc_${idx}" value="${savedVal}" oninput="tableInputState['${v.ref_number}'] = this.value" placeholder="${currentUnit}" class="border rounded p-1 w-20 text-xs">
               <button onclick="allocateVillage(${idx})" class="bg-emerald-700 text-white px-2 py-1 rounded text-xs font-bold hover:bg-emerald-800">Add</button>
             </div>
           </td>
@@ -755,6 +853,7 @@
     }
 
     function allocateVillage(idx) {
+      captureTableInputs();
       const v = currentFilteredVillages[idx];
       const valInput = document.getElementById(`alloc_${idx}`);
       const valEntered = parseFloat(valInput.value);
@@ -765,10 +864,10 @@
       }
 
       const valKg = currentUnit === 'MT' ? valEntered * 1000 : valEntered;
-      const maxPermittedKg = v.max_cap_kg * 1.10;
+      const isAdhoc = v.status && v.status.includes('Non-Surveyed');
 
-      if ((v.sourced_kg + valKg) > maxPermittedKg) {
-        const confirmExceed = confirm(`Allocation exceeds max permitted (+10% limit: ${(maxPermittedKg * unitMultiplier()).toFixed(2)} ${currentUnit}).\n\nAllow soft deviation entry?`);
+      if (!isAdhoc && (v.sourced_kg + valKg) > (v.max_cap_kg * 1.10)) {
+        const confirmExceed = confirm(`Allocation exceeds max permitted (+10% limit).\n\nAllow soft deviation entry?`);
         if (!confirmExceed) return;
       }
 
@@ -781,13 +880,17 @@
           village_id: v.village_id,
           village_name: v.village_name,
           block: v.block,
+          district: v.district,
+          status: v.status,
           allocated_kg: valKg
         });
       }
 
       v.sourced_kg += valKg;
-      v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+      if (!isAdhoc) v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+
       valInput.value = '';
+      delete tableInputState[v.ref_number];
       
       renderStagedTable();
       renderVillageTable();
@@ -795,6 +898,7 @@
     }
 
     function addAllEnteredQuantities() {
+      captureTableInputs();
       let addedCount = 0;
       currentFilteredVillages.forEach((v, idx) => {
         const valInput = document.getElementById(`alloc_${idx}`);
@@ -812,13 +916,16 @@
                 village_id: v.village_id,
                 village_name: v.village_name,
                 block: v.block,
+                district: v.district,
+                status: v.status,
                 allocated_kg: valKg
               });
             }
 
             v.sourced_kg += valKg;
-            v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+            if (!v.status.includes('Non-Surveyed')) v.remaining_kg = v.max_cap_kg - v.sourced_kg;
             valInput.value = '';
+            delete tableInputState[v.ref_number];
             addedCount++;
           }
         }
@@ -885,13 +992,13 @@
       const vMaster = masterVillages.find(m => m.ref_number === item.ref_number);
       if (vMaster) {
         vMaster.sourced_kg += diffKg;
-        vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
+        if (!vMaster.status.includes('Non-Surveyed')) vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
       }
 
       const vFiltered = currentFilteredVillages.find(f => f.ref_number === item.ref_number);
       if (vFiltered) {
         vFiltered.sourced_kg += diffKg;
-        vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
+        if (!vFiltered.status.includes('Non-Surveyed')) vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
       }
 
       item.allocated_kg = newValKg;
@@ -906,13 +1013,13 @@
       const vMaster = masterVillages.find(m => m.ref_number === item.ref_number);
       if (vMaster) {
         vMaster.sourced_kg -= item.allocated_kg;
-        vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
+        if (!vMaster.status.includes('Non-Surveyed')) vMaster.remaining_kg = vMaster.max_cap_kg - vMaster.sourced_kg;
       }
 
       const vFiltered = currentFilteredVillages.find(f => f.ref_number === item.ref_number);
       if (vFiltered) {
         vFiltered.sourced_kg -= item.allocated_kg;
-        vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
+        if (!vFiltered.status.includes('Non-Surveyed')) vFiltered.remaining_kg = vFiltered.max_cap_kg - vFiltered.sourced_kg;
       }
 
       activeTxItems.splice(idx, 1);
@@ -959,6 +1066,8 @@
       }
     }
 
+    let isSyncingTransaction = false;
+
     function resetTransactionForm() {
       document.getElementById('txVendor').value = '';
       document.getElementById('txTruck').value = '';
@@ -970,15 +1079,18 @@
       document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
       
       activeTxItems = [];
+      for (let k in tableInputState) delete tableInputState[k];
+      
       renderStagedTable();
+      renderVillageTable();
       updateAllocationCounter();
-
-      alert("Form reset successfully! Master CSV dataset remains attached.");
     }
 
     function saveCurrentTransaction() {
-      const vendor = document.getElementById('txVendor').value;
-      const truck = document.getElementById('txTruck').value.toUpperCase();
+      if (isSyncingTransaction) return;
+
+      const vendor = document.getElementById('txVendor').value.trim();
+      const truck = document.getElementById('txTruck').value.toUpperCase().trim();
       const totalEntered = parseFloat(document.getElementById('txTotalQty').value);
 
       if (!vendor || !truck || isNaN(totalEntered) || activeTxItems.length === 0) {
@@ -986,31 +1098,37 @@
         return;
       }
 
+      isSyncingTransaction = true;
+
       const totalProcuredKg = currentUnit === 'MT' ? totalEntered * 1000 : totalEntered;
 
       const txObj = {
         id: 'TX_' + Date.now(),
         date: document.getElementById('txDate').value,
-        place: document.getElementById('txPlace').value,
+        place: document.getElementById('txPlace').value.trim(),
         vendor_name: vendor,
         truck_id: truck,
-        logged_by: document.getElementById('txLoggedBy').value || 'Chethan H C',
+        logged_by: document.getElementById('txLoggedBy').value.trim() || 'Chethan H C',
         vendor_sig_base64: uploadedVendorSigBase64 || "",
         total_kg: totalProcuredKg,
         items: [...activeTxItems]
       };
 
-      loggedTransactions.push(txObj);
+      let existingIdx = loggedTransactions.findIndex(t => t.truck_id === truck);
+      if (existingIdx >= 0) {
+        loggedTransactions[existingIdx] = txObj;
+      } else {
+        loggedTransactions.push(txObj);
+      }
+
       localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
       
       syncSingleTransactionToCloud(txObj);
 
-      alert("Transaction saved and synced to cloud!");
-      activeTxItems = [];
-      uploadedVendorSigBase64 = "";
-      document.getElementById('vendorSigInput').value = '';
-      renderStagedTable();
-      updateAllocationCounter();
+      alert(`✅ Transaction '${truck}' saved & synced successfully! Form is now reset for the next entry.`);
+      
+      resetTransactionForm();
+      isSyncingTransaction = false;
     }
 
     // STRICT GOOGLE SHEETS CLOUD MIRROR
@@ -1054,6 +1172,8 @@
             village_id: r.Village_ID || r.village_id || '',
             village_name: r.Village_Name || r.village_name || '',
             block: r.Block || r.block || '',
+            district: r.District || r.district || '',
+            status: r.Audit_Status || r.status || (refNo.startsWith('adhoc_') ? 'Non-Surveyed (Ad-Hoc)' : 'Approved'),
             allocated_kg: qty
           });
           
@@ -1089,7 +1209,6 @@
       });
     }
 
-    // INDEPENDENT FILTER HANDLERS
     function onGrnFilterChange(truckVal) {
       document.getElementById('filterVendor').value = "";
       document.getElementById('vendorGrnToggleBar').classList.add('hidden');
@@ -1200,7 +1319,6 @@
       document.getElementById('pdfTotalQty').innerText = (grantTotalKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' ' + currentUnit;
     }
 
-    // MANAGER PIN-PROTECTED DELETION
     function deleteSelectedGrn() {
       let activeGrnId = document.getElementById('filterTruck').value;
       if (!activeGrnId && currentVendorGrns.length > 0) {
@@ -1241,7 +1359,6 @@
       alert(`✅ Traceability Sheet '${activeGrnId}' deleted successfully!`);
     }
 
-    // A4 PAGE BUILDER WITH EMBEDDED DIGITAL SIGNATURE
     function buildSinglePageHtml(first, pageItems, totalDisp, currentPage, totalPages, isFirstPageOverall = false) {
       let rowsHtml = '';
       pageItems.forEach(i => {
@@ -1263,7 +1380,7 @@
         : `<div style="height: 36px;"></div>`;
 
       return `
-        <div style="width: 720px; min-height: 1000px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto; border: 1px solid #d1d5db;">
+        <div class="grn-page-break" style="width: 720px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto; page-break-after: always; break-after: page;">
           <div>
             <div style="text-align: center; font-weight: bold; font-size: 17px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase;">
               Traceability Sheet
@@ -1312,7 +1429,7 @@
               I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.
             </p>
 
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; padding-top: 10px; border-top: 1px solid #111827; margin-top: 10px;">
+            <div style="display: flex; justify-between; align-items: flex-end; font-size: 12px; padding-top: 10px; border-top: 1px solid #111827; margin-top: 10px;">
               <div>
                 <p style="font-size: 12px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
               </div>
@@ -1327,7 +1444,6 @@
       `;
     }
 
-    // MULTI-PAGE SINGLE GRN PDF EXPORT
     async function exportToPdf() {
       let activeGrnId = document.getElementById('filterTruck').value;
       if (!activeGrnId && currentVendorGrns.length > 0) {
@@ -1380,12 +1496,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.2, 0.2, 0.2, 0.2],
+        margin:       [0.3, 0.3, 0.3, 0.3],
         filename:     `${grnNumber}_Traceability_Sheet_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'] }
+        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
       };
 
       try {
@@ -1395,7 +1511,6 @@
       }
     }
 
-    // CONSOLIDATED DATE-TO-DATE PDF GENERATOR
     async function downloadConsolidatedPdf() {
       const fromDate = document.getElementById('pdfFromDate').value;
       const toDate = document.getElementById('pdfToDate').value;
@@ -1456,12 +1571,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.2, 0.2, 0.2, 0.2],
+        margin:       [0.3, 0.3, 0.3, 0.3],
         filename:     `Consolidated_Traceability_Report_${fromDate}_to_${toDate}_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'] }
+        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
       };
 
       try {
@@ -1471,7 +1586,6 @@
       }
     }
 
-    // CONSOLIDATED VENDOR-SPECIFIC PDF GENERATOR
     async function downloadVendorConsolidatedPdf() {
       const selectedVendor = document.getElementById('filterConsolidatedVendor').value;
 
@@ -1527,12 +1641,12 @@
 
       window.scrollTo(0, 0);
       const opt = {
-        margin:       [0.2, 0.2, 0.2, 0.2],
+        margin:       [0.3, 0.3, 0.3, 0.3],
         filename:     `Consolidated_Vendor_Report_${selectedVendor.replace(/\s+/g, '_')}_${currentUnit}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'] }
+        pagebreak:    { mode: ['css', 'legacy'], before: '.grn-page-break' }
       };
 
       try {
@@ -1540,6 +1654,35 @@
       } finally {
         renderTraceabilitySheet();
       }
+    }
+
+    function exportNonSurveyedAuditCsv() {
+      const mult = unitMultiplier();
+      let csv = `GRN_Truck_ID,Date,Vendor_Name,Place,Logged_By,Ref_Number,Village_Name,Block,District,Audit_Status,Allocated_Qty_${currentUnit}\n`;
+      let nonSurveyedFound = 0;
+
+      loggedTransactions.forEach(t => {
+        if (t.items && Array.isArray(t.items)) {
+          t.items.forEach(i => {
+            let isAdhoc = (i.ref_number && i.ref_number.startsWith('adhoc_')) || (i.status && i.status.includes('Non-Surveyed'));
+            if (isAdhoc) {
+              nonSurveyedFound++;
+              let dispQty = (i.allocated_kg * mult).toFixed(2);
+              csv += `"${t.truck_id}","${t.date}","${t.vendor_name}","${t.place}","${t.logged_by}","${i.ref_number}","${i.village_name}","${i.block}","${i.district || ''}","Non-Surveyed (Ad-Hoc)",${dispQty}\n`;
+            }
+          });
+        }
+      });
+
+      if (nonSurveyedFound === 0) {
+        alert("No allocations for Non-Surveyed (Ad-Hoc) villages were found in the logged records.");
+        return;
+      }
+
+      const blob = document.createElement('a');
+      blob.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      blob.download = `Non_Surveyed_Villages_Audit_Report_${currentUnit}.csv`;
+      blob.click();
     }
 
     function exportLoggedCsv() {
@@ -1567,7 +1710,7 @@
     }
 
     function saveWebhookUrl() {
-      const url = document.getElementById('webhookUrl').value;
+      const url = document.getElementById('webhookUrl').value.trim();
       localStorage.setItem('pongamia_webhook', url);
       fetchCloudLedger();
       alert("Cloud Sync Webhook saved!");
@@ -1588,7 +1731,9 @@
       const confirmClear = confirm("⚠️ WARNING: You are about to clear all locally saved transaction logs on this device.\n\nData saved on the Google Sheet will NOT be affected.\n\nDo you really want to clear local cache?");
       if (confirmClear) {
         localStorage.removeItem('pongamia_logs');
+        localStorage.removeItem('pongamia_adhoc_villages');
         loggedTransactions = [];
+        adhocVillagesStore = [];
         alert("Local cache cleared successfully.");
         location.reload();
       }
