@@ -69,14 +69,15 @@
         <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
           <h4 class="font-bold text-emerald-900 uppercase mb-1">Tab 1: Log Sourcing Transaction</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
-            <li><strong>Add New Village:</strong> Register non-surveyed locations directly in the table. Edit/Delete operations require Security PIN (`1234`).</li>
-            <li><strong>Vendor Signature Sync:</strong> Signature images sync via Google Sheets so they appear across all team devices.</li>
+            <li><strong>Add New Village:</strong> Click <em>➕ Add New Village</em> in the table header to register non-surveyed locations.</li>
+            <li><strong>Global Signature Persistence:</strong> Uploaded vendor signatures sync via Google Sheets across all devices.</li>
           </ul>
         </div>
         <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
           <h4 class="font-bold text-blue-900 uppercase mb-1">Tab 2: Audit & Security</h4>
           <ul class="list-disc pl-4 space-y-1 text-[11px]">
-            <li><strong>Protected Operations:</strong> Deletion of sheets or villages requires Junior Manager Security PIN (`1234`).</li>
+            <li><strong>Protected Deletion:</strong> Requires Junior Manager Security PIN (`1234`).</li>
+            <li><strong>Aligned Single-Sheet PDFs:</strong> Up to 22 village items fit cleanly onto a single A4 printable page without splitting signatures.</li>
           </ul>
         </div>
       </div>
@@ -86,7 +87,7 @@
     </div>
   </div>
 
-  <!-- SIMPLIFIED ADD & MANAGE NON-SURVEYED VILLAGE MODAL -->
+  <!-- SIMPLIFIED ADD / MANAGE NON-SURVEYED VILLAGE MODAL -->
   <div id="newVillageModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-5 border border-amber-300 space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
@@ -97,9 +98,8 @@
       </div>
 
       <div class="space-y-3 text-xs">
-        <!-- Add New Entry Box -->
         <div class="space-y-2">
-          <h4 class="font-bold text-amber-900 uppercase text-[11px]">Enter New Village Details</h4>
+          <h4 class="font-bold text-amber-900 uppercase text-[11px]">Enter Village Details</h4>
           <div>
             <label class="block text-gray-600 font-medium">Village Name *</label>
             <input type="text" id="nsVillageName" placeholder="e.g. Ramanagara" oninput="autoCapitalize(this)" class="border rounded p-2 w-full mt-0.5">
@@ -121,13 +121,13 @@
             <input type="number" step="any" id="nsProcuredQty" placeholder="e.g. 500" class="border border-amber-400 bg-amber-50 rounded p-2 w-full mt-0.5 font-bold text-amber-900">
           </div>
           <button onclick="submitNewVillageEntry()" class="w-full bg-amber-600 text-white text-xs py-2 rounded font-bold hover:bg-amber-700 shadow">
-            ➕ Add Village to Transaction Table
+            ➕ Add Village to Allocation Table
           </button>
         </div>
 
-        <!-- Manage / Edit / Delete Existing Box -->
+        <!-- Edit/Delete Management Box -->
         <div class="border-t pt-3 space-y-2">
-          <h4 class="font-bold text-slate-800 uppercase text-[11px]">✏️ Manage Existing Non-Surveyed Villages (PIN Required)</h4>
+          <h4 class="font-bold text-slate-800 uppercase text-[11px]">✏️ Manage Non-Surveyed Villages (PIN Required)</h4>
           <div class="flex space-x-2">
             <select id="nsExistingDropdown" class="border rounded p-2 w-full bg-slate-50 font-semibold text-xs">
               <option value="">-- Select Village to Edit / Delete --</option>
@@ -136,7 +136,6 @@
             <button onclick="deleteSelectedAdhocVillage()" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-bold shadow">Delete</button>
           </div>
         </div>
-
       </div>
 
       <div class="flex justify-end pt-2 border-t">
@@ -403,17 +402,17 @@
           </tfoot>
         </table>
 
-        <p class="text-[10px] italic text-gray-600 mb-8">I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.</p>
+        <p class="text-[10px] italic text-gray-600 mb-6">I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.</p>
 
         <!-- Clean Signature Block -->
-        <div class="flex justify-between items-end text-xs pt-4 border-t border-gray-300">
+        <div class="flex justify-between items-end text-xs pt-3 border-t border-gray-300">
           <div>
             <p><strong>Place, Date:</strong> <span id="pdfPlaceDate">-</span></p>
           </div>
           <div class="text-center">
-            <div id="pdfSigImgPreview" class="h-12 flex items-center justify-center"></div>
+            <div id="pdfSigImgPreview" class="h-10 flex items-center justify-center"></div>
             <div class="w-48 border-t border-gray-800 pt-1 font-bold">Signature of Vendor</div>
-            <div class="text-[10px] text-gray-500 mt-1">Logged By: <span id="pdfLoggedBy">-</span></div>
+            <div class="text-[10px] text-gray-500 mt-0.5">Logged By: <span id="pdfLoggedBy">-</span></div>
           </div>
         </div>
       </div>
@@ -609,14 +608,32 @@
       return str.replace(/\b\w/g, l => l.toUpperCase());
     }
 
+    // BASE64 COMPRESSION FOR RELIABLE SIGNATURE SYNC
     function handleSignatureUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = function(e) {
-        uploadedVendorSigBase64 = e.target.result;
-        alert("Vendor signature image successfully attached to this transaction!");
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 300;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxDim) { h *= maxDim / w; w = maxDim; }
+          } else {
+            if (h > maxDim) { w *= maxDim / h; h = maxDim; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          uploadedVendorSigBase64 = canvas.toDataURL('image/jpeg', 0.7);
+          alert("Vendor signature image successfully attached to this transaction!");
+        };
+        img.src = e.target.result;
       };
       reader.readAsDataURL(file);
     }
@@ -1429,16 +1446,17 @@
       alert(`✅ Traceability Sheet '${activeGrnId}' deleted successfully!`);
     }
 
+    // A4 PRINT LAYOUT ENGINE (ACCOMMODATES 22 ROWS PER PAGE)
     function buildSinglePageHtml(first, pageItems, totalDisp, currentPage, totalPages, isFirstPageOverall = false) {
       let rowsHtml = '';
       pageItems.forEach(i => {
         let dispQty = (i.allocated_kg * unitMultiplier()).toLocaleString(undefined, {maximumFractionDigits: 2});
         rowsHtml += `
           <tr style="border-bottom: 1px solid #111827;">
-            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-family: monospace; font-size: 12px; font-weight: bold; width: 20%; box-sizing: border-box; word-break: break-word;">${i.ref_number}</td>
-            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-weight: bold; font-size: 12px; width: 40%; box-sizing: border-box; word-break: break-word;">${i.village_name}</td>
-            <td style="border-right: 1px solid #111827; padding: 5px 8px; font-size: 12px; font-weight: 500; width: 22%; box-sizing: border-box; word-break: break-word;">${i.block}</td>
-            <td style="padding: 5px 8px; text-align: right; font-weight: bold; font-size: 12px; width: 18%; box-sizing: border-box; white-space: nowrap;">${dispQty}</td>
+            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-family: monospace; font-size: 11px; font-weight: bold; width: 20%; box-sizing: border-box; word-break: break-word;">${i.ref_number}</td>
+            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-weight: bold; font-size: 11px; width: 40%; box-sizing: border-box; word-break: break-word;">${i.village_name}</td>
+            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-size: 11px; font-weight: 500; width: 22%; box-sizing: border-box; word-break: break-word;">${i.block}</td>
+            <td style="padding: 4px 6px; text-align: right; font-weight: bold; font-size: 11px; width: 18%; box-sizing: border-box; white-space: nowrap;">${dispQty}</td>
           </tr>
         `;
       });
@@ -1446,28 +1464,28 @@
       const breakStyle = isFirstPageOverall ? '' : 'page-break-before: always; break-before: page;';
 
       const sigImageTag = first.vendor_sig_base64 
-        ? `<img src="${first.vendor_sig_base64}" style="height: 36px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
-        : `<div style="height: 36px;"></div>`;
+        ? `<img src="${first.vendor_sig_base64}" style="height: 32px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
+        : `<div style="height: 32px;"></div>`;
 
       return `
-        <div style="width: 720px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto;">
+        <div style="width: 720px; padding: 16px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto;">
           <div>
-            <div style="text-align: center; font-weight: bold; font-size: 17px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase;">
+            <div style="text-align: center; font-weight: bold; font-size: 16px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 4px; margin-bottom: 10px; text-transform: uppercase;">
               Traceability Sheet
             </div>
             
-            <div style="border: 1px solid #111827; margin-bottom: 12px; font-size: 12px;">
+            <div style="border: 1px solid #111827; margin-bottom: 10px; font-size: 11px;">
               <div style="display: flex; border-bottom: 1px solid #111827;">
-                <div style="width: 33.33%; padding: 5px 8px; font-weight: bold; border-right: 1px solid #111827;">Vendor Name</div>
-                <div style="width: 66.66%; padding: 5px 8px; font-weight: 600;">${first.vendor_name || '-'}</div>
+                <div style="width: 33.33%; padding: 4px 6px; font-weight: bold; border-right: 1px solid #111827;">Vendor Name</div>
+                <div style="width: 66.66%; padding: 4px 6px; font-weight: 600;">${first.vendor_name || '-'}</div>
               </div>
               <div style="display: flex;">
-                <div style="width: 33.33%; padding: 5px 8px; font-weight: bold; border-right: 1px solid #111827;">Truck Arrival ID / GRN</div>
-                <div style="width: 66.66%; padding: 5px 8px; font-family: monospace; font-weight: bold;">${first.truck_id || '-'}</div>
+                <div style="width: 33.33%; padding: 4px 6px; font-weight: bold; border-right: 1px solid #111827;">Truck Arrival ID / GRN</div>
+                <div style="width: 66.66%; padding: 4px 6px; font-family: monospace; font-weight: bold;">${first.truck_id || '-'}</div>
               </div>
             </div>
 
-            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; font-size: 12px; margin-bottom: 12px;">
+            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; font-size: 11px; margin-bottom: 10px;">
               <colgroup>
                 <col style="width: 20%;">
                 <col style="width: 40%;">
@@ -1476,10 +1494,10 @@
               </colgroup>
               <thead>
                 <tr style="background-color: #f3f4f6; border-bottom: 1.5px solid #111827;">
-                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 20%;">Ref Number</th>
-                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 40%;">Village Name</th>
-                  <th style="border-right: 1px solid #111827; padding: 6px; text-align: left; font-size: 12px; width: 22%;">Block</th>
-                  <th style="padding: 6px; text-align: right; font-size: 12px; width: 18%;">Qty (in ${currentUnit})</th>
+                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 20%;">Ref Number</th>
+                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 40%;">Village Name</th>
+                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 22%;">Block</th>
+                  <th style="padding: 5px; text-align: right; font-size: 11px; width: 18%;">Qty (in ${currentUnit})</th>
                 </tr>
               </thead>
               <tbody>
@@ -1487,26 +1505,26 @@
               </tbody>
               <tfoot>
                 <tr style="border-top: 2px solid #111827; font-weight: bold; background-color: #ffffff;">
-                  <td colspan="3" style="padding: 6px; text-align: right; border-right: 1px solid #111827; text-transform: uppercase; font-size: 12px;">Total Qty (in ${currentUnit})</td>
-                  <td style="padding: 6px; text-align: right; font-size: 12px; white-space: nowrap;">${totalDisp} ${currentUnit}</td>
+                  <td colspan="3" style="padding: 5px; text-align: right; border-right: 1px solid #111827; text-transform: uppercase; font-size: 11px;">Total Qty (in ${currentUnit})</td>
+                  <td style="padding: 5px; text-align: right; font-size: 11px; white-space: nowrap;">${totalDisp} ${currentUnit}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
           <div>
-            <p style="font-size: 10px; font-style: italic; color: #374151; margin-top: 10px; margin-bottom: 16px;">
+            <p style="font-size: 9px; font-style: italic; color: #374151; margin-top: 6px; margin-bottom: 12px;">
               I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.
             </p>
 
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; padding-top: 10px; border-top: 1px solid #111827; margin-top: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; padding-top: 6px; border-top: 1px solid #111827; margin-top: 6px;">
               <div>
-                <p style="font-size: 12px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
+                <p style="font-size: 11px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
               </div>
               <div style="text-align: center;">
                 ${sigImageTag}
-                <div style="width: 180px; border-top: 1px solid #111827; padding-top: 4px; font-weight: bold; font-size: 12px;">Signature of Vendor</div>
-                <div style="font-size: 10px; color: #4b5563; margin-top: 2px;">Logged By: ${first.logged_by || 'Chethan H C'} (Page ${currentPage} of ${totalPages})</div>
+                <div style="width: 180px; border-top: 1px solid #111827; padding-top: 2px; font-weight: bold; font-size: 11px;">Signature of Vendor</div>
+                <div style="font-size: 9px; color: #4b5563; margin-top: 1px;">Logged By: ${first.logged_by || 'Chethan H C'} (Page ${currentPage} of ${totalPages})</div>
               </div>
             </div>
           </div>
@@ -1551,7 +1569,7 @@
       allItems.forEach(i => totalQtyKg += i.allocated_kg);
       const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-      const pageSize = 14;
+      const pageSize = 22; // FIT UP TO 22 ROWS ON A SINGLE A4 SHEET
       const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
 
       const pdfContainer = document.getElementById('pdfContainer');
@@ -1627,7 +1645,7 @@
         allItems.forEach(i => totalQtyKg += i.allocated_kg);
         const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-        const pageSize = 14;
+        const pageSize = 22;
         const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
 
         for (let p = 0; p < totalPages; p++) {
@@ -1697,7 +1715,7 @@
         allItems.forEach(i => totalQtyKg += i.allocated_kg);
         const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-        const pageSize = 14;
+        const pageSize = 22;
         const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
 
         for (let p = 0; p < totalPages; p++) {
@@ -1735,7 +1753,9 @@
         if (t.items && Array.isArray(t.items)) {
           t.items.forEach(i => {
             let isAdhoc = (i.ref_number && i.ref_number.startsWith('adhoc_')) || (i.status && i.status.includes('Non-Surveyed'));
-            if (isAdhoc) {
+            let existsInStore = adhocVillagesStore.some(a => a.ref_number === i.ref_number);
+
+            if (isAdhoc && existsInStore) {
               nonSurveyedFound++;
               let dispQty = (i.allocated_kg * mult).toFixed(2);
               csv += `"${t.truck_id}","${t.date}","${t.vendor_name}","${t.place}","${t.logged_by}","${i.ref_number}","${i.village_name}","${i.block}","${i.district || ''}","Non-Surveyed (Ad-Hoc)",${dispQty}\n`;
@@ -1745,7 +1765,7 @@
       });
 
       if (nonSurveyedFound === 0) {
-        alert("No allocations for Non-Surveyed (Ad-Hoc) villages were found in the logged records.");
+        alert("No active allocations for Non-Surveyed (Ad-Hoc) villages were found in the logged records.");
         return;
       }
 
