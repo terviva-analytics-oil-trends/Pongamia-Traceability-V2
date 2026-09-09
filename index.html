@@ -492,6 +492,11 @@
     let masterVillages = [];
     let loggedTransactions = JSON.parse(localStorage.getItem('pongamia_logs') || '[]');
     let adhocVillagesStore = JSON.parse(localStorage.getItem('pongamia_adhoc_villages') || '[]');
+    // Vendor-level signatures: { "Vendor Name": "data:image/jpeg;base64,..." }.
+    // Looked up by vendor name whenever a sheet is rendered, instead of being
+    // copied into every transaction/row — see handleRetroactiveSignatureUpload
+    // for why.
+    let vendorSignatures = JSON.parse(localStorage.getItem('pongamia_vendor_signatures') || '{}');
     let currentFilteredVillages = [];
     let activeTxItems = [];
     let currentUnit = 'KG';
@@ -618,10 +623,7 @@
     }
 
     // BASE64 COMPRESSION FOR RELIABLE SIGNATURE SYNC
-    function handleSignatureUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
+    function compressImageFileToBase64(file, onDone, onError) {
       const reader = new FileReader();
       reader.onload = function(e) {
         const img = new Image();
@@ -638,57 +640,77 @@
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
           ctx.drawImage(img, 0, 0, w, h);
-          uploadedVendorSigBase64 = canvas.toDataURL('image/jpeg', 0.7);
-          alert("Vendor signature image successfully attached to this transaction!");
+          onDone(canvas.toDataURL('image/jpeg', 0.7));
         };
+        img.onerror = function() { onError && onError(); };
         img.src = e.target.result;
       };
+      reader.onerror = function() { onError && onError(); };
       reader.readAsDataURL(file);
     }
 
+    function handleSignatureUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      compressImageFileToBase64(file, function(base64) {
+        uploadedVendorSigBase64 = base64;
+        alert("Vendor signature image successfully attached to this transaction!");
+      }, function() {
+        alert("Could not read that image file. Please try a different PNG or JPEG.");
+      });
+    }
+
     // RETROACTIVE SIGNATURE UPLOAD IN TAB 2
+    //
+    // The previous version of this function looped over every logged
+    // transaction for the vendor and called syncSingleTransactionToCloud()
+    // on each one. Two things made that unreliable:
+    //
+    //  1. Code.gs's doPost only ever APPENDS rows — it has no concept of
+    //     "this transaction already exists, update it instead". So every
+    //     time this ran, it re-appended a full duplicate copy of every
+    //     village row for every transaction that vendor ever had. (This is
+    //     exactly the duplicate TAKA333/Kathinagenahalli rows visible in
+    //     the sheet — same data, few seconds apart.)
+    //  2. The sync used `mode: 'no-cors'`, which makes the response
+    //     unreadable — a failed write looks identical to a successful one,
+    //     which is why it can say "synced!" while column L stays empty.
+    //
+    // The fix: a signature is a property of the VENDOR, not of each
+    // transaction, so it only needs to be sent ONCE — a single small
+    // upsert to a dedicated place — and every sheet for that vendor reads
+    // it live at render time (see buildSinglePageHtml / 
+    // renderTraceabilitySheetForGrn). No looping, no duplication, and the
+    // matching Code.gs (see the version shared alongside this fix) now
+    // upserts by vendor name instead of blindly appending.
     function handleRetroactiveSignatureUpload(event) {
       const selectedVendor = document.getElementById('filterVendor').value;
       if (!selectedVendor) {
         alert("Please select a Vendor Name first.");
+        event.target.value = '';
         return;
       }
 
       const file = event.target.files[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const img = new Image();
-        img.onload = function() {
-          const canvas = document.createElement('canvas');
-          const maxDim = 300;
-          let w = img.width, h = img.height;
-          if (w > h) {
-            if (w > maxDim) { h *= maxDim / w; w = maxDim; }
-          } else {
-            if (h > maxDim) { w *= maxDim / h; h = maxDim; }
-          }
-          canvas.width = w; canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          const sigBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      compressImageFileToBase64(file, async function(sigBase64) {
+        vendorSignatures[selectedVendor] = sigBase64;
+        localStorage.setItem('pongamia_vendor_signatures', JSON.stringify(vendorSignatures));
+        renderTraceabilitySheet(); // reflect immediately on this device, no refresh needed
 
-          loggedTransactions.forEach(t => {
-            if (t.vendor_name === selectedVendor) {
-              t.vendor_sig_base64 = sigBase64;
-              syncSingleTransactionToCloud(t); // Sync update to Google Sheets
-            }
-          });
-
-          localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
-          renderTraceabilitySheet();
-          alert(`✅ Signature successfully attached to all sheets for vendor '${selectedVendor}' and synced to cloud!`);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+        const result = await syncVendorSignatureToCloud(selectedVendor, sigBase64);
+        if (result.ok) {
+          alert(`✅ Signature saved for '${selectedVendor}' and confirmed synced to the cloud. It now applies to every traceability sheet for this vendor, on every device — no re-uploading needed per truck.`);
+        } else {
+          alert(`⚠️ Signature saved on THIS device for '${selectedVendor}', but the cloud sync failed (${result.reason}).\n\nOther devices will NOT see it until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online, or check the webhook URL in Tab 3.`);
+        }
+      }, function() {
+        alert("Could not read that image file. Please try a different PNG or JPEG.");
+      });
     }
 
     function submitNewVillageEntry() {
@@ -876,6 +898,28 @@
         }
       });
       return count;
+    }
+
+    // Was wired to the Yield Factor field's onchange but never implemented
+    // in any version of this file — changing the yield factor had no
+    // effect on already-loaded villages. Unrelated to the signature fix,
+    // just a one-line gap worth closing while in here.
+    function recalculateCapacities() {
+      const yieldFactor = parseFloat(document.getElementById('yieldFactor').value) || 3;
+      masterVillages.forEach(v => {
+        if (!v.status || !v.status.includes('Non-Surveyed')) {
+          v.max_cap_kg = (v.est_trees || 0) * yieldFactor;
+          v.remaining_kg = v.max_cap_kg - v.sourced_kg;
+        }
+      });
+      currentFilteredVillages.forEach(fv => {
+        const m = masterVillages.find(mv => mv.ref_number === fv.ref_number);
+        if (m) {
+          fv.max_cap_kg = m.max_cap_kg;
+          fv.remaining_kg = m.remaining_kg;
+        }
+      });
+      renderVillageTable();
     }
 
     function recalculateMasterSourcedFromLogs() {
@@ -1225,7 +1269,7 @@
       updateAllocationCounter();
     }
 
-    function saveCurrentTransaction() {
+    async function saveCurrentTransaction() {
       if (isSyncingTransaction) return;
 
       const vendor = document.getElementById('txVendor').value.trim();
@@ -1261,10 +1305,14 @@
       }
 
       localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
-      
-      syncSingleTransactionToCloud(txObj);
 
-      alert(`✅ Transaction '${truck}' saved & synced successfully! Form is now reset for the next entry.`);
+      const syncResult = await syncSingleTransactionToCloud(txObj);
+
+      if (syncResult.ok) {
+        alert(`✅ Transaction '${truck}' saved & synced successfully! Form is now reset for the next entry.`);
+      } else {
+        alert(`⚠️ Transaction '${truck}' was saved on THIS device, but the cloud sync failed (${syncResult.reason}).\n\nIt will NOT be visible on other devices until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online, or check the webhook URL in Tab 3.`);
+      }
       
       resetTransactionForm();
       isSyncingTransaction = false;
@@ -1282,7 +1330,14 @@
 
       try {
         const res = await fetch(url);
-        const rows = await res.json();
+        const payload = await res.json();
+
+        // The fixed Apps Script (see the version shared alongside this
+        // fix) returns { ledger, vendor_signatures }. If the old script is
+        // still deployed (redeploy hasn't happened yet), it returns a
+        // flat array — handled here so this doesn't break mid-rollout.
+        const rows = Array.isArray(payload) ? payload : payload.ledger;
+        const cloudVendorSigs = Array.isArray(payload) ? {} : (payload.vendor_signatures || {});
         if (!Array.isArray(rows)) return;
 
         const txMap = {};
@@ -1321,10 +1376,19 @@
 
         loggedTransactions = Object.values(txMap);
         localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
+
+        // Merge vendor signatures: cloud is the source of truth per
+        // vendor (including an explicit removal, represented as an empty
+        // string), but don't clobber a signature this device just saved
+        // and hasn't confirmed synced yet.
+        vendorSignatures = { ...vendorSignatures, ...cloudVendorSigs };
+        Object.keys(vendorSignatures).forEach(k => { if (!vendorSignatures[k]) delete vendorSignatures[k]; });
+        localStorage.setItem('pongamia_vendor_signatures', JSON.stringify(vendorSignatures));
         
         recalculateMasterSourcedFromLogs();
         populateSearchDropdowns();
         populateAdhocModalDropdowns();
+        renderTraceabilitySheet();
       } catch (e) {
         console.error("Cloud fetch error:", e);
       }
@@ -1415,8 +1479,9 @@
       document.getElementById('pdfLoggedBy').innerText = first.logged_by;
 
       const sigPreviewDiv = document.getElementById('pdfSigImgPreview');
-      if (first.vendor_sig_base64) {
-        sigPreviewDiv.innerHTML = `<img src="${first.vendor_sig_base64}" class="h-10 object-contain mb-1" alt="Vendor Signature">`;
+      const resolvedSig = (vendorSignatures && vendorSignatures[first.vendor_name]) || first.vendor_sig_base64 || '';
+      if (resolvedSig) {
+        sigPreviewDiv.innerHTML = `<img src="${resolvedSig}" class="h-10 object-contain mb-1" alt="Vendor Signature">`;
       } else {
         sigPreviewDiv.innerHTML = `<div class="h-10"></div>`;
       }
@@ -1516,8 +1581,9 @@
 
       const breakStyle = isFirstPageOverall ? '' : 'page-break-before: always; break-before: page;';
 
-      const sigImageTag = first.vendor_sig_base64 
-        ? `<img src="${first.vendor_sig_base64}" style="height: 32px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
+      const resolvedSig = (vendorSignatures && vendorSignatures[first.vendor_name]) || first.vendor_sig_base64 || '';
+      const sigImageTag = resolvedSig
+        ? `<img src="${resolvedSig}" style="height: 32px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
         : `<div style="height: 32px;"></div>`;
 
       return `
@@ -1859,15 +1925,44 @@
       alert("Cloud Sync Webhook saved!");
     }
 
-    function syncSingleTransactionToCloud(tx) {
+    // Both sync functions below deliberately avoid `mode: 'no-cors'`.
+    // That mode was originally used because a POST with
+    // `Content-Type: application/json` triggers a CORS preflight (an
+    // OPTIONS request), and Apps Script web apps don't handle preflight —
+    // so the POST would otherwise fail outright. `no-cors` "worked" by
+    // letting the request go through, but it also makes the response
+    // completely opaque: there is no way to tell whether the write
+    // actually succeeded. That's exactly why a failed sync (e.g. the
+    // sheet rejecting a write) looked identical to a successful one.
+    //
+    // Using `Content-Type: text/plain;charset=utf-8` instead keeps the
+    // request in the browser's CORS "simple request" category, so no
+    // preflight happens — Apps Script still reads the raw JSON body fine
+    // via e.postData.contents — and the real response comes back
+    // readable, so we can actually confirm success or surface the error.
+    async function postToWebhook(payload) {
       const url = localStorage.getItem('pongamia_webhook');
-      if (!url) return;
-      fetch(url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tx)
-      });
+      if (!url) return { ok: false, reason: 'No cloud sync webhook configured (see Tab 3).' };
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (json && json.status === 'success') return { ok: true };
+        return { ok: false, reason: (json && json.message) || 'Server reported an error.' };
+      } catch (e) {
+        return { ok: false, reason: e.message || 'Network error.' };
+      }
+    }
+
+    async function syncSingleTransactionToCloud(tx) {
+      return postToWebhook(tx);
+    }
+
+    async function syncVendorSignatureToCloud(vendorName, base64) {
+      return postToWebhook({ type: 'vendor_signature', vendor_name: vendorName, vendor_sig_base64: base64 });
     }
 
     function clearAllLogs() {
@@ -1880,6 +1975,7 @@
 
       localStorage.removeItem('pongamia_logs');
       localStorage.removeItem('pongamia_adhoc_villages');
+      localStorage.removeItem('pongamia_vendor_signatures');
       loggedTransactions = [];
       adhocVillagesStore = [];
       alert("Local cache cleared successfully.");
