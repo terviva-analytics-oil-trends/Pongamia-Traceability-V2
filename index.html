@@ -1557,7 +1557,7 @@
       document.getElementById('pdfTotalQty').innerText = (grantTotalKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2}) + ' ' + currentUnit;
     }
 
-    function deleteSelectedGrn() {
+    async function deleteSelectedGrn() {
       let activeGrnId = document.getElementById('filterTruck').value;
       if (!activeGrnId && currentVendorGrns.length > 0) {
         activeGrnId = currentVendorGrns[activeVendorGrnIndex];
@@ -1579,6 +1579,11 @@
       loggedTransactions = loggedTransactions.filter(t => t.truck_id !== activeGrnId);
       localStorage.setItem('pongamia_logs', JSON.stringify(loggedTransactions));
 
+      // This used to only clear local state — the rows stayed in the
+      // cloud sheet and would reappear on the next sync (here or on any
+      // other device). Now actually removes them from the shared ledger.
+      const deleteResult = await postToWebhook({ type: 'delete_transaction', truck_id: activeGrnId });
+
       recalculateMasterSourcedFromLogs();
       populateSearchDropdowns();
 
@@ -1594,7 +1599,9 @@
       document.getElementById('pdfTableBody').innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Select a Truck ID or Vendor above to render certificate.</td></tr>`;
       document.getElementById('pdfTotalQty').innerText = '0';
 
-      alert(`✅ Traceability Sheet '${activeGrnId}' deleted successfully!`);
+      alert(deleteResult.ok
+        ? `✅ Traceability Sheet '${activeGrnId}' deleted successfully — removed from this device and the shared cloud sheet.`
+        : `⚠️ Traceability Sheet '${activeGrnId}' removed from this device, but the cloud deletion failed (${deleteResult.reason}). Try "🔄 Sync Team Traceability Sheets" and delete it again once you're back online.`);
     }
 
     // A4 PRINT LAYOUT ENGINE (ACCOMMODATES 22 ROWS PER PAGE)
