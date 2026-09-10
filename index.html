@@ -652,12 +652,49 @@
       reader.readAsDataURL(file);
     }
 
+    // Shared by both upload points (Tab 1's per-transaction field and
+    // Tab 2's retroactive button). A signature is a property of the
+    // VENDOR, not of any one transaction — this is the only place that
+    // actually persists one, so every entry point funnels through here.
+    // It updates the local cache immediately (so it shows right away,
+    // with no refresh needed) and then syncs to the cloud, reporting back
+    // whether that sync actually succeeded.
+    async function saveVendorSignature(vendorName, base64) {
+      vendorSignatures[vendorName] = base64;
+      localStorage.setItem('pongamia_vendor_signatures', JSON.stringify(vendorSignatures));
+      renderTraceabilitySheet(); // reflect immediately if this vendor's sheet is open
+      return syncVendorSignatureToCloud(vendorName, base64);
+    }
+
+    // Uploading here used to only attach the signature to THIS ONE
+    // transaction (uploadedVendorSigBase64 → txObj.vendor_sig_base64).
+    // That looked fine right after saving, but disappeared on refresh:
+    // Code.gs now intentionally leaves the per-row signature column blank
+    // (signatures live in the separate VendorSignatures sheet instead), so
+    // the next fetchCloudLedger() pulled fresh data with no signature and
+    // overwrote the local copy. Routing this through saveVendorSignature()
+    // instead means it's durable from the moment it's uploaded — same as
+    // uploading it retroactively in Tab 2 — and it also immediately
+    // applies to every other transaction this vendor already has.
     function handleSignatureUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
-      compressImageFileToBase64(file, function(base64) {
-        uploadedVendorSigBase64 = base64;
-        alert("Vendor signature image successfully attached to this transaction!");
+
+      const vendorName = document.getElementById('txVendor').value.trim();
+      if (!vendorName) {
+        alert("Please enter the Vendor Name above first, then upload the signature.");
+        event.target.value = '';
+        return;
+      }
+
+      compressImageFileToBase64(file, async function(base64) {
+        uploadedVendorSigBase64 = base64; // kept so this transaction's own save also carries it, for old-data compatibility
+        const result = await saveVendorSignature(vendorName, base64);
+        if (result.ok) {
+          alert(`✅ Signature saved for '${vendorName}' and synced. It now applies to every traceability sheet for this vendor — including this transaction — on every device.`);
+        } else {
+          alert(`⚠️ Signature saved on THIS device for '${vendorName}', but the cloud sync failed (${result.reason}).\n\nOther devices won't see it until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online.`);
+        }
       }, function() {
         alert("Could not read that image file. Please try a different PNG or JPEG.");
       });
@@ -698,11 +735,7 @@
       if (!file) return;
 
       compressImageFileToBase64(file, async function(sigBase64) {
-        vendorSignatures[selectedVendor] = sigBase64;
-        localStorage.setItem('pongamia_vendor_signatures', JSON.stringify(vendorSignatures));
-        renderTraceabilitySheet(); // reflect immediately on this device, no refresh needed
-
-        const result = await syncVendorSignatureToCloud(selectedVendor, sigBase64);
+        const result = await saveVendorSignature(selectedVendor, sigBase64);
         if (result.ok) {
           alert(`✅ Signature saved for '${selectedVendor}' and confirmed synced to the cloud. It now applies to every traceability sheet for this vendor, on every device — no re-uploading needed per truck.`);
         } else {
@@ -1571,10 +1604,10 @@
         let dispQty = (i.allocated_kg * unitMultiplier()).toLocaleString(undefined, {maximumFractionDigits: 2});
         rowsHtml += `
           <tr style="border-bottom: 1px solid #111827;">
-            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-family: monospace; font-size: 11px; font-weight: bold; width: 20%; box-sizing: border-box; word-break: break-word;">${i.ref_number}</td>
-            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-weight: bold; font-size: 11px; width: 40%; box-sizing: border-box; word-break: break-word;">${i.village_name}</td>
-            <td style="border-right: 1px solid #111827; padding: 4px 6px; font-size: 11px; font-weight: 500; width: 22%; box-sizing: border-box; word-break: break-word;">${i.block}</td>
-            <td style="padding: 4px 6px; text-align: right; font-weight: bold; font-size: 11px; width: 18%; box-sizing: border-box; white-space: nowrap;">${dispQty}</td>
+            <td style="border-right: 1px solid #111827; padding: 8px 10px; font-family: monospace; font-size: 12px; font-weight: bold; width: 20%; box-sizing: border-box; word-break: break-word;">${i.ref_number}</td>
+            <td style="border-right: 1px solid #111827; padding: 8px 10px; font-weight: bold; font-size: 12px; width: 40%; box-sizing: border-box; word-break: break-word;">${i.village_name}</td>
+            <td style="border-right: 1px solid #111827; padding: 8px 10px; font-size: 12px; font-weight: 500; width: 22%; box-sizing: border-box; word-break: break-word;">${i.block}</td>
+            <td style="padding: 8px 10px; text-align: right; font-weight: bold; font-size: 12px; width: 18%; box-sizing: border-box; white-space: nowrap;">${dispQty}</td>
           </tr>
         `;
       });
@@ -1583,28 +1616,28 @@
 
       const resolvedSig = (vendorSignatures && vendorSignatures[first.vendor_name]) || first.vendor_sig_base64 || '';
       const sigImageTag = resolvedSig
-        ? `<img src="${resolvedSig}" style="height: 32px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
-        : `<div style="height: 32px;"></div>`;
+        ? `<img src="${resolvedSig}" style="height: 36px; object-fit: contain; margin: 0 auto 2px auto;" alt="Vendor Signature">` 
+        : `<div style="height: 36px;"></div>`;
 
       return `
-        <div style="width: 720px; padding: 16px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto;">
+        <div style="width: 720px; padding: 20px; box-sizing: border-box; background-color: #ffffff; color: #000000; ${breakStyle} margin: 0 auto;">
           <div>
-            <div style="text-align: center; font-weight: bold; font-size: 16px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 4px; margin-bottom: 10px; text-transform: uppercase;">
+            <div style="text-align: center; font-weight: bold; font-size: 17px; letter-spacing: 0.05em; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase;">
               Traceability Sheet
             </div>
             
-            <div style="border: 1px solid #111827; margin-bottom: 10px; font-size: 11px;">
+            <div style="border: 1px solid #111827; margin-bottom: 12px; font-size: 12px;">
               <div style="display: flex; border-bottom: 1px solid #111827;">
-                <div style="width: 33.33%; padding: 4px 6px; font-weight: bold; border-right: 1px solid #111827;">Vendor Name</div>
-                <div style="width: 66.66%; padding: 4px 6px; font-weight: 600;">${first.vendor_name || '-'}</div>
+                <div style="width: 33.33%; padding: 6px 10px; font-weight: bold; border-right: 1px solid #111827;">Vendor Name</div>
+                <div style="width: 66.66%; padding: 6px 10px; font-weight: 600;">${first.vendor_name || '-'}</div>
               </div>
               <div style="display: flex;">
-                <div style="width: 33.33%; padding: 4px 6px; font-weight: bold; border-right: 1px solid #111827;">Truck Arrival ID / GRN</div>
-                <div style="width: 66.66%; padding: 4px 6px; font-family: monospace; font-weight: bold;">${first.truck_id || '-'}</div>
+                <div style="width: 33.33%; padding: 6px 10px; font-weight: bold; border-right: 1px solid #111827;">Truck Arrival ID / GRN</div>
+                <div style="width: 66.66%; padding: 6px 10px; font-family: monospace; font-weight: bold;">${first.truck_id || '-'}</div>
               </div>
             </div>
 
-            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; font-size: 11px; margin-bottom: 10px;">
+            <table style="width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid #111827; font-size: 12px; margin-bottom: 12px;">
               <colgroup>
                 <col style="width: 20%;">
                 <col style="width: 40%;">
@@ -1613,10 +1646,10 @@
               </colgroup>
               <thead>
                 <tr style="background-color: #f3f4f6; border-bottom: 1.5px solid #111827;">
-                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 20%;">Ref Number</th>
-                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 40%;">Village Name</th>
-                  <th style="border-right: 1px solid #111827; padding: 5px; text-align: left; font-size: 11px; width: 22%;">Block</th>
-                  <th style="padding: 5px; text-align: right; font-size: 11px; width: 18%;">Qty (in ${currentUnit})</th>
+                  <th style="border-right: 1px solid #111827; padding: 8px; text-align: left; font-size: 12px; width: 20%;">Ref Number</th>
+                  <th style="border-right: 1px solid #111827; padding: 8px; text-align: left; font-size: 12px; width: 40%;">Village Name</th>
+                  <th style="border-right: 1px solid #111827; padding: 8px; text-align: left; font-size: 12px; width: 22%;">Block</th>
+                  <th style="padding: 8px; text-align: right; font-size: 12px; width: 18%;">Qty (in ${currentUnit})</th>
                 </tr>
               </thead>
               <tbody>
@@ -1624,31 +1657,109 @@
               </tbody>
               <tfoot>
                 <tr style="border-top: 2px solid #111827; font-weight: bold; background-color: #ffffff;">
-                  <td colspan="3" style="padding: 5px; text-align: right; border-right: 1px solid #111827; text-transform: uppercase; font-size: 11px;">Total Qty (in ${currentUnit})</td>
-                  <td style="padding: 5px; text-align: right; font-size: 11px; white-space: nowrap;">${totalDisp} ${currentUnit}</td>
+                  <td colspan="3" style="padding: 8px; text-align: right; border-right: 1px solid #111827; text-transform: uppercase; font-size: 12px;">Total Qty (in ${currentUnit})</td>
+                  <td style="padding: 8px; text-align: right; font-size: 12px; white-space: nowrap;">${totalDisp} ${currentUnit}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
           <div>
-            <p style="font-size: 9px; font-style: italic; color: #374151; margin-top: 6px; margin-bottom: 12px;">
+            <p style="font-size: 10px; font-style: italic; color: #374151; margin-top: 8px; margin-bottom: 14px;">
               I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.
             </p>
 
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; padding-top: 6px; border-top: 1px solid #111827; margin-top: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; font-size: 12px; padding-top: 8px; border-top: 1px solid #111827; margin-top: 8px;">
               <div>
-                <p style="font-size: 11px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
+                <p style="font-size: 12px;"><strong>Place, Date:</strong> ${first.place || ''}, ${first.date || ''}</p>
               </div>
               <div style="text-align: center;">
                 ${sigImageTag}
-                <div style="width: 180px; border-top: 1px solid #111827; padding-top: 2px; font-weight: bold; font-size: 11px;">Signature of Vendor</div>
-                <div style="font-size: 9px; color: #4b5563; margin-top: 1px;">Logged By: ${first.logged_by || 'Chethan H C'} (Page ${currentPage} of ${totalPages})</div>
+                <div style="width: 180px; border-top: 1px solid #111827; padding-top: 3px; font-weight: bold; font-size: 12px;">Signature of Vendor</div>
+                <div style="font-size: 10px; color: #4b5563; margin-top: 2px;">Logged By: ${first.logged_by || 'Chethan H C'} (Page ${currentPage} of ${totalPages})</div>
               </div>
             </div>
           </div>
         </div>
       `;
+    }
+
+    // ---- Dynamic PDF pagination -----------------------------------------
+    // pageSize used to be a hardcoded guess (22), which is why some reports
+    // left a near-empty final page and others got cut awkwardly — a fixed
+    // number can't match how tall the content actually renders. This
+    // instead renders the header/footer and every row into a hidden,
+    // off-screen copy of the same markup, measures their real pixel
+    // heights, and packs each printed page until it's actually full —
+    // matching the physical A4 page html2pdf produces.
+    const PDF_PAGE_WIDTH_IN = 8.27;   // A4
+    const PDF_PAGE_HEIGHT_IN = 11.69; // A4
+    const PDF_MARGIN_IN = 0.2;        // matches opt.margin in the export functions below
+    const PDF_CONTENT_WIDTH_PX = 720; // matches the width used in buildSinglePageHtml
+    const PDF_SAFETY_MARGIN_PX = 24;  // buffer against measurement rounding
+
+    function getPdfPageCapacityPx() {
+      const contentWidthIn = PDF_PAGE_WIDTH_IN - (PDF_MARGIN_IN * 2);
+      const pxPerInch = PDF_CONTENT_WIDTH_PX / contentWidthIn;
+      const contentHeightIn = PDF_PAGE_HEIGHT_IN - (PDF_MARGIN_IN * 2);
+      return contentHeightIn * pxPerInch;
+    }
+
+    function withHiddenProbe(html, callback) {
+      const probe = document.createElement('div');
+      probe.style.position = 'absolute';
+      probe.style.left = '-9999px';
+      probe.style.top = '0';
+      probe.style.visibility = 'hidden';
+      probe.innerHTML = html;
+      document.body.appendChild(probe);
+      let result;
+      try {
+        result = callback(probe);
+      } finally {
+        document.body.removeChild(probe);
+      }
+      return result;
+    }
+
+    // Splits `items` into pages sized so each page's rendered height
+    // (header + rows + footer) actually fits one physical A4 page.
+    function paginateItemsForPdf(tx, items) {
+      if (items.length === 0) return [[]];
+
+      // Overhead = header block + table header row + footer/signature
+      // block, measured with an empty table body.
+      const overheadHtml = buildSinglePageHtml(tx, [], '0', 1, 1, true);
+      const overheadPx = withHiddenProbe(overheadHtml, (probe) => probe.firstElementChild.offsetHeight);
+
+      // Row heights, measured with every row actually rendered (so text
+      // wrapping in long village/block names is accounted for).
+      const allRowsHtml = buildSinglePageHtml(tx, items, '0', 1, 1, true);
+      const rowHeights = withHiddenProbe(allRowsHtml, (probe) => {
+        const rows = probe.querySelectorAll('tbody tr');
+        return Array.from(rows).map(r => r.offsetHeight || 34);
+      });
+
+      const capacityPx = getPdfPageCapacityPx();
+      const availableForRows = Math.max(capacityPx - overheadPx - PDF_SAFETY_MARGIN_PX, 100);
+
+      const pages = [];
+      let currentPage = [];
+      let currentHeight = 0;
+
+      items.forEach((item, idx) => {
+        const h = rowHeights[idx] || 34;
+        if (currentPage.length > 0 && (currentHeight + h) > availableForRows) {
+          pages.push(currentPage);
+          currentPage = [];
+          currentHeight = 0;
+        }
+        currentPage.push(item);
+        currentHeight += h;
+      });
+      if (currentPage.length > 0) pages.push(currentPage);
+
+      return pages;
     }
 
     async function exportToPdf() {
@@ -1688,16 +1799,15 @@
       allItems.forEach(i => totalQtyKg += i.allocated_kg);
       const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-      const pageSize = 22; // FIT UP TO 22 ROWS ON A SINGLE A4 SHEET
-      const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+      const pages = paginateItemsForPdf(first, allItems);
+      const totalPages = pages.length;
 
       const pdfContainer = document.getElementById('pdfContainer');
 
       let multiPageHtml = '';
-      for (let p = 0; p < totalPages; p++) {
-        const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+      pages.forEach((pageItems, p) => {
         multiPageHtml += buildSinglePageHtml(first, pageItems, totalDisp, p + 1, totalPages, p === 0);
-      }
+      });
 
       pdfContainer.innerHTML = multiPageHtml;
 
@@ -1764,14 +1874,13 @@
         allItems.forEach(i => totalQtyKg += i.allocated_kg);
         const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-        const pageSize = 22;
-        const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+        const pages = paginateItemsForPdf(tx, allItems);
+        const totalPages = pages.length;
 
-        for (let p = 0; p < totalPages; p++) {
-          const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+        pages.forEach((pageItems, p) => {
           multiPageHtml += buildSinglePageHtml(tx, pageItems, totalDisp, p + 1, totalPages, isVeryFirstPage);
           isVeryFirstPage = false;
-        }
+        });
       });
 
       pdfContainer.innerHTML = multiPageHtml;
@@ -1834,14 +1943,13 @@
         allItems.forEach(i => totalQtyKg += i.allocated_kg);
         const totalDisp = (totalQtyKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2});
 
-        const pageSize = 22;
-        const totalPages = Math.max(1, Math.ceil(allItems.length / pageSize));
+        const pages = paginateItemsForPdf(tx, allItems);
+        const totalPages = pages.length;
 
-        for (let p = 0; p < totalPages; p++) {
-          const pageItems = allItems.slice(p * pageSize, (p + 1) * pageSize);
+        pages.forEach((pageItems, p) => {
           multiPageHtml += buildSinglePageHtml(tx, pageItems, totalDisp, p + 1, totalPages, isVeryFirstPage);
           isVeryFirstPage = false;
-        }
+        });
       });
 
       pdfContainer.innerHTML = multiPageHtml;
