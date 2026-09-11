@@ -40,6 +40,8 @@
         <span>ℹ️ Guide</span>
       </button>
 
+      <span id="pendingSyncBadge" class="hidden bg-amber-500 text-slate-950 text-xs px-2.5 py-1.5 rounded font-bold animate-pulse"></span>
+
       <button onclick="fetchCloudLedger()" class="bg-emerald-700 hover:bg-emerald-600 text-xs px-2.5 py-1.5 rounded text-white font-bold flex items-center space-x-1">
         <span>🔄 Sync Team Traceability Sheets</span>
       </button>
@@ -52,7 +54,8 @@
     <div class="max-w-7xl mx-auto flex overflow-x-auto space-x-4 sm:space-x-8 px-4">
       <button onclick="switchTab('log')" id="tab-log" class="py-3 px-2 tab-active whitespace-nowrap"><span class="hidden sm:inline">1. Log Sourcing Transaction</span><span class="sm:hidden">1. Log</span></button>
       <button onclick="switchTab('search')" id="tab-search" class="py-3 px-2 text-gray-500 hover:text-emerald-700 whitespace-nowrap"><span class="hidden sm:inline">2. Traceability Reports</span><span class="sm:hidden">2. Reports</span></button>
-      <button onclick="switchTab('sync')" id="tab-sync" class="py-3 px-2 text-gray-500 hover:text-emerald-700 whitespace-nowrap"><span class="hidden sm:inline">3. Cloud Sync Setup</span><span class="sm:hidden">3. Sync</span></button>
+      <button onclick="switchTab('summary')" id="tab-summary" class="py-3 px-2 text-gray-500 hover:text-emerald-700 whitespace-nowrap"><span class="hidden sm:inline">3. Summary</span><span class="sm:hidden">3. Summary</span></button>
+      <button onclick="switchTab('sync')" id="tab-sync" class="py-3 px-2 text-gray-500 hover:text-emerald-700 whitespace-nowrap"><span class="hidden sm:inline">4. Cloud Sync Setup</span><span class="sm:hidden">4. Sync</span></button>
     </div>
   </div>
 
@@ -173,31 +176,31 @@
           <h2 class="text-sm font-semibold text-gray-700 uppercase">Transaction Header Details</h2>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-          <div>
+        <div class="flex flex-wrap gap-3">
+          <div class="flex-1 min-w-[130px]">
             <label class="block text-xs font-medium text-gray-600">Vendor Name</label>
             <input type="text" id="txVendor" placeholder="e.g. Naveen" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm w-full">
           </div>
-          <div>
+          <div class="flex-1 min-w-[130px]">
             <label class="block text-xs font-medium text-gray-600">Truck Arrival ID / GRN</label>
             <input type="text" id="txTruck" placeholder="e.g. TAKA001" oninput="this.value = this.value.toUpperCase();" class="border rounded p-2 text-sm w-full uppercase font-mono font-bold">
           </div>
-          <div>
+          <div class="flex-1 min-w-[110px]">
             <label class="block text-xs font-medium text-gray-600">Total Procured Qty (<span class="unitLbl">KG</span>)</label>
             <input type="number" id="txTotalQty" placeholder="10000" oninput="updateAllocationCounter()" class="border rounded p-2 text-sm w-full bg-yellow-50 font-bold">
           </div>
-          <div>
+          <div class="flex-[1.6] min-w-[260px]">
             <label class="block text-xs font-medium text-gray-600">Date & Place</label>
             <div class="flex space-x-1">
               <input type="text" id="txPlace" placeholder="Madhugiri" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm flex-1 min-w-0">
               <input type="date" id="txDate" class="border rounded p-2 text-sm w-[135px] flex-shrink-0">
             </div>
           </div>
-          <div>
+          <div class="flex-1 min-w-[130px]">
             <label class="block text-xs font-medium text-gray-600">Logged By (Staff)</label>
             <input type="text" id="txLoggedBy" placeholder="Chethan H C" oninput="autoCapitalize(this)" class="border rounded p-2 text-sm w-full">
           </div>
-          <div>
+          <div class="flex-1 min-w-[160px]">
             <label class="block text-xs font-medium text-gray-600">Upload Vendor Signature</label>
             <input type="file" id="vendorSigInput" accept="image/png, image/jpeg, image/jpg" onchange="handleSignatureUpload(event)" class="mt-1 text-[10px] w-full border rounded p-1 bg-gray-50">
           </div>
@@ -479,7 +482,77 @@
       </div>
     </section>
 
-    <!-- TAB 3: CLOUD SYNC SETUP -->
+    <!-- TAB 3: SEASON SUMMARY -->
+    <section id="sec-summary" class="hidden space-y-6">
+      <div class="bg-white p-4 rounded-lg shadow space-y-1 no-print">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-sm font-semibold text-gray-700 uppercase">Season Summary</h2>
+          <button onclick="exportSummaryCsv()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded font-bold">📄 Export Vendor Summary (CSV)</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3" id="summaryTopStats"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <div class="p-3 bg-gray-100 border-b">
+            <h3 class="text-sm font-bold text-gray-800">Total Procured by Vendor</h3>
+          </div>
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-gray-50 text-gray-600 uppercase border-b sticky top-0">
+                <tr>
+                  <th class="p-2">Vendor</th>
+                  <th class="p-2 text-right">Total (<span class="unitLbl">KG</span>)</th>
+                  <th class="p-2 text-right">Trucks</th>
+                </tr>
+              </thead>
+              <tbody id="summaryVendorTableBody" class="divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <div class="p-3 bg-gray-100 border-b flex items-center justify-between">
+            <h3 class="text-sm font-bold text-gray-800">Villages Near or Over Capacity</h3>
+            <span class="text-[10px] text-gray-500">≥ 90% of Max Cap</span>
+          </div>
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-gray-50 text-gray-600 uppercase border-b sticky top-0">
+                <tr>
+                  <th class="p-2">Village</th>
+                  <th class="p-2 text-right">Sourced</th>
+                  <th class="p-2 text-right">Cap</th>
+                  <th class="p-2 text-right">%</th>
+                </tr>
+              </thead>
+              <tbody id="summaryCapacityTableBody" class="divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden md:col-span-2">
+          <div class="p-3 bg-gray-100 border-b">
+            <h3 class="text-sm font-bold text-gray-800">Top Villages by Volume Sourced</h3>
+          </div>
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-gray-50 text-gray-600 uppercase border-b sticky top-0">
+                <tr>
+                  <th class="p-2">Village</th>
+                  <th class="p-2">District / Block</th>
+                  <th class="p-2 text-right">Total Sourced (<span class="unitLbl">KG</span>)</th>
+                  <th class="p-2 text-right">GRNs</th>
+                </tr>
+              </thead>
+              <tbody id="summaryTopVillagesTableBody" class="divide-y divide-gray-200"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CLOUD SYNC SETUP -->
     <section id="sec-sync" class="hidden space-y-4">
       <div class="bg-white p-6 rounded-lg shadow space-y-4">
         <h2 class="text-sm font-semibold text-gray-700 uppercase">Multi-Device Real-Time Synchronization Setup</h2>
@@ -506,6 +579,10 @@
     // copied into every transaction/row — see handleRetroactiveSignatureUpload
     // for why.
     let vendorSignatures = JSON.parse(localStorage.getItem('pongamia_vendor_signatures') || '{}');
+    // Failed syncs land here instead of just vanishing after one failed
+    // attempt — persisted so it survives a refresh, retried automatically
+    // in the background. See queueForRetry / flushSyncQueue.
+    let pendingSyncQueue = JSON.parse(localStorage.getItem('pongamia_pending_sync') || '[]');
     let currentFilteredVillages = [];
     let activeTxItems = [];
     let currentUnit = 'KG';
@@ -522,11 +599,13 @@
         document.getElementById('webhookUrl').value = savedWebhook;
         document.getElementById('webhookAlertBanner').classList.add('hidden');
         fetchCloudLedger();
+        flushSyncQueue();
       } else {
         document.getElementById('webhookAlertBanner').classList.remove('hidden');
       }
       document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
       populateAdhocModalDropdowns();
+      updatePendingSyncBadge();
     });
 
     function autoCapitalize(input) {
@@ -672,7 +751,11 @@
       vendorSignatures[vendorName] = base64;
       localStorage.setItem('pongamia_vendor_signatures', JSON.stringify(vendorSignatures));
       renderTraceabilitySheet(); // reflect immediately if this vendor's sheet is open
-      return syncVendorSignatureToCloud(vendorName, base64);
+      const result = await syncVendorSignatureToCloud(vendorName, base64);
+      if (!result.ok) {
+        queueForRetry('vendor_signature', { type: 'vendor_signature', vendor_name: vendorName, vendor_sig_base64: base64 });
+      }
+      return result;
     }
 
     // Uploading here used to only attach the signature to THIS ONE
@@ -702,7 +785,7 @@
         if (result.ok) {
           alert(`✅ Signature saved for '${vendorName}' and synced. It now applies to every traceability sheet for this vendor — including this transaction — on every device.`);
         } else {
-          alert(`⚠️ Signature saved on THIS device for '${vendorName}', but the cloud sync failed (${result.reason}).\n\nOther devices won't see it until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online.`);
+          alert(`⚠️ Signature saved on THIS device for '${vendorName}', but the cloud sync failed (${result.reason}).\n\nIt's been queued and will retry automatically — other devices will pick it up once that succeeds.`);
         }
       }, function() {
         alert("Could not read that image file. Please try a different PNG or JPEG.");
@@ -748,7 +831,7 @@
         if (result.ok) {
           alert(`✅ Signature saved for '${selectedVendor}' and confirmed synced to the cloud. It now applies to every traceability sheet for this vendor, on every device — no re-uploading needed per truck.`);
         } else {
-          alert(`⚠️ Signature saved on THIS device for '${selectedVendor}', but the cloud sync failed (${result.reason}).\n\nOther devices will NOT see it until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online, or check the webhook URL in Tab 3.`);
+          alert(`⚠️ Signature saved on THIS device for '${selectedVendor}', but the cloud sync failed (${result.reason}).\n\nIt's been queued and will retry automatically — other devices will pick it up once that succeeds.`);
         }
       }, function() {
         alert("Could not read that image file. Please try a different PNG or JPEG.");
@@ -763,6 +846,10 @@
 
       if (!vName || !dist || !block) {
         alert("Please complete Village Name, District, and Block.");
+        return;
+      }
+
+      if (!isNaN(enteredQtyVal) && enteredQtyVal > 0 && !requireTotalQtyEntered()) {
         return;
       }
 
@@ -854,6 +941,122 @@
       document.getElementById('sec-' + tab).classList.remove('hidden');
       document.getElementById('tab-' + tab).classList.add('tab-active');
       if (tab === 'search') populateSearchDropdowns();
+      if (tab === 'summary') renderSummaryReport();
+    }
+
+    // Pure client-side aggregation of whatever's already loaded — no extra
+    // network calls, so it's instant, and it reflects whatever this
+    // device has most recently synced. Re-run every time the tab opens.
+    function renderSummaryReport() {
+      const mult = unitMultiplier();
+
+      const totalKg = loggedTransactions.reduce((sum, t) => sum + (t.total_kg || 0), 0);
+      const vendorSet = new Set(loggedTransactions.map(t => t.vendor_name).filter(Boolean));
+      const truckSet = new Set(loggedTransactions.map(t => t.truck_id).filter(Boolean));
+      const villageSet = new Set();
+      loggedTransactions.forEach(t => (t.items || []).forEach(i => villageSet.add(i.ref_number)));
+
+      const statCard = (label, value) => `
+        <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+          <div class="text-[10px] text-gray-500 uppercase font-bold">${label}</div>
+          <div class="text-xl font-extrabold text-slate-800">${value}</div>
+        </div>
+      `;
+      document.getElementById('summaryTopStats').innerHTML =
+        statCard(`Total Procured (${currentUnit})`, (totalKg * mult).toLocaleString(undefined, {maximumFractionDigits: 2})) +
+        statCard('Vendors', vendorSet.size) +
+        statCard('Trucks Logged', truckSet.size) +
+        statCard('Villages Sourced', villageSet.size);
+
+      // Total procured by vendor
+      const byVendor = {};
+      loggedTransactions.forEach(t => {
+        if (!t.vendor_name) return;
+        if (!byVendor[t.vendor_name]) byVendor[t.vendor_name] = { kg: 0, trucks: new Set() };
+        byVendor[t.vendor_name].kg += (t.total_kg || 0);
+        byVendor[t.vendor_name].trucks.add(t.truck_id);
+      });
+      const vendorRows = Object.entries(byVendor).sort((a, b) => b[1].kg - a[1].kg);
+      const vendorTbody = document.getElementById('summaryVendorTableBody');
+      vendorTbody.innerHTML = vendorRows.length === 0
+        ? `<tr><td colspan="3" class="p-4 text-center text-gray-400">No transactions logged yet.</td></tr>`
+        : vendorRows.map(([name, v]) => `
+            <tr class="hover:bg-gray-50">
+              <td class="p-2 font-bold text-gray-800">${name}</td>
+              <td class="p-2 text-right font-semibold">${(v.kg * mult).toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+              <td class="p-2 text-right text-gray-500">${v.trucks.size}</td>
+            </tr>
+          `).join('');
+
+      // Villages near/over capacity
+      const capRows = masterVillages
+        .filter(v => v.status && !v.status.includes('Non-Surveyed') && v.max_cap_kg > 0)
+        .map(v => ({ ...v, pct: (v.sourced_kg / v.max_cap_kg) * 100 }))
+        .filter(v => v.pct >= 90)
+        .sort((a, b) => b.pct - a.pct);
+      const capTbody = document.getElementById('summaryCapacityTableBody');
+      capTbody.innerHTML = capRows.length === 0
+        ? `<tr><td colspan="4" class="p-4 text-center text-gray-400">No villages currently at or near capacity.</td></tr>`
+        : capRows.map(v => `
+            <tr class="hover:bg-gray-50 ${v.pct >= 100 ? 'bg-red-50' : 'bg-amber-50'}">
+              <td class="p-2 font-bold text-gray-800">${v.village_name}</td>
+              <td class="p-2 text-right">${(v.sourced_kg * mult).toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+              <td class="p-2 text-right">${(v.max_cap_kg * mult).toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+              <td class="p-2 text-right font-extrabold ${v.pct >= 100 ? 'text-red-700' : 'text-amber-700'}">${v.pct.toFixed(0)}%</td>
+            </tr>
+          `).join('');
+
+      // Top villages by volume sourced (across all transactions, regardless of master CSV match)
+      const byVillage = {};
+      loggedTransactions.forEach(t => {
+        (t.items || []).forEach(i => {
+          const key = i.ref_number || i.village_id;
+          if (!byVillage[key]) {
+            byVillage[key] = { name: i.village_name, district: i.district || '', block: i.block, kg: 0, grns: new Set() };
+          }
+          byVillage[key].kg += (i.allocated_kg || 0);
+          byVillage[key].grns.add(t.truck_id);
+        });
+      });
+      const topVillageRows = Object.values(byVillage).sort((a, b) => b.kg - a.kg).slice(0, 25);
+      const topVillagesTbody = document.getElementById('summaryTopVillagesTableBody');
+      topVillagesTbody.innerHTML = topVillageRows.length === 0
+        ? `<tr><td colspan="4" class="p-4 text-center text-gray-400">No transactions logged yet.</td></tr>`
+        : topVillageRows.map(v => `
+            <tr class="hover:bg-gray-50">
+              <td class="p-2 font-bold text-gray-800">${v.name}</td>
+              <td class="p-2 text-gray-600">${v.district ? v.district + ' / ' : ''}${v.block}</td>
+              <td class="p-2 text-right font-semibold">${(v.kg * mult).toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+              <td class="p-2 text-right text-gray-500">${v.grns.size}</td>
+            </tr>
+          `).join('');
+    }
+
+    function exportSummaryCsv() {
+      const mult = unitMultiplier();
+      const byVendor = {};
+      loggedTransactions.forEach(t => {
+        if (!t.vendor_name) return;
+        if (!byVendor[t.vendor_name]) byVendor[t.vendor_name] = { kg: 0, trucks: new Set() };
+        byVendor[t.vendor_name].kg += (t.total_kg || 0);
+        byVendor[t.vendor_name].trucks.add(t.truck_id);
+      });
+      const rows = Object.entries(byVendor).sort((a, b) => b[1].kg - a[1].kg);
+
+      if (rows.length === 0) {
+        alert("No transactions logged yet — nothing to summarize.");
+        return;
+      }
+
+      let csv = `Vendor_Name,Total_Procured_${currentUnit},Truck_Count\n`;
+      rows.forEach(([name, v]) => {
+        csv += `"${name}",${(v.kg * mult).toFixed(2)},${v.trucks.size}\n`;
+      });
+
+      const blob = document.createElement('a');
+      blob.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      blob.download = `Vendor_Summary_${currentUnit}.csv`;
+      blob.click();
     }
 
     function syncRadiusInput(val) {
@@ -1134,7 +1337,21 @@
       }
     }
 
+    // Without this, it was possible to allocate quantities to villages
+    // before the transaction's own Total Procured Qty was ever entered —
+    // the Unallocated Balance would then show a nonsensical negative
+    // number instead of catching the mistake up front.
+    function requireTotalQtyEntered() {
+      const totalEntered = parseFloat(document.getElementById('txTotalQty').value);
+      if (isNaN(totalEntered) || totalEntered <= 0) {
+        alert("Please enter the Total Procured Qty for this transaction first — that's what village allocations are measured against.");
+        return false;
+      }
+      return true;
+    }
+
     function allocateVillage(idx) {
+      if (!requireTotalQtyEntered()) return;
       captureTableInputs();
       const v = currentFilteredVillages[idx];
       const valInput = document.getElementById(`alloc_${idx}`);
@@ -1180,6 +1397,7 @@
     }
 
     function addAllEnteredQuantities() {
+      if (!requireTotalQtyEntered()) return;
       captureTableInputs();
       let addedCount = 0;
       currentFilteredVillages.forEach((v, idx) => {
@@ -1410,7 +1628,8 @@
       if (syncResult.ok) {
         alert(`✅ Transaction '${truck}' saved & synced successfully! Form is now reset for the next entry.`);
       } else {
-        alert(`⚠️ Transaction '${truck}' was saved on THIS device, but the cloud sync failed (${syncResult.reason}).\n\nIt will NOT be visible on other devices until it syncs — try "🔄 Sync Team Traceability Sheets" once you're back online, or check the webhook URL in Tab 3.`);
+        queueForRetry('transaction', txObj);
+        alert(`⚠️ Transaction '${truck}' was saved on THIS device, but the cloud sync failed (${syncResult.reason}).\n\nIt's been queued and will retry automatically in the background (or as soon as you're back online) — no need to re-enter it.`);
       }
       
       resetTransactionForm();
@@ -2194,6 +2413,53 @@
       return postToWebhook({ type: 'vendor_signature', vendor_name: vendorName, vendor_sig_base64: base64 });
     }
 
+    // ---- Pending sync retry queue ---------------------------------------
+    // A failed sync used to just show a warning and then be forgotten —
+    // someone had to remember to hit "Sync" again manually, or the entry
+    // stayed invisible to every other device indefinitely. Failed items
+    // now go in this queue, persisted to localStorage (so it survives a
+    // refresh or the tab being closed), and get retried automatically.
+    function queueForRetry(type, payload) {
+      pendingSyncQueue.push({ id: 'PSQ_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), type, payload, addedAt: new Date().toISOString() });
+      localStorage.setItem('pongamia_pending_sync', JSON.stringify(pendingSyncQueue));
+      updatePendingSyncBadge();
+    }
+
+    function updatePendingSyncBadge() {
+      const badge = document.getElementById('pendingSyncBadge');
+      if (!badge) return;
+      if (pendingSyncQueue.length === 0) {
+        badge.classList.add('hidden');
+        badge.innerText = '';
+      } else {
+        badge.classList.remove('hidden');
+        badge.innerText = `⏳ ${pendingSyncQueue.length} pending sync${pendingSyncQueue.length > 1 ? 's' : ''}`;
+      }
+    }
+
+    let isFlushingSyncQueue = false;
+    async function flushSyncQueue() {
+      if (isFlushingSyncQueue || pendingSyncQueue.length === 0) return;
+      if (!localStorage.getItem('pongamia_webhook')) return;
+      isFlushingSyncQueue = true;
+
+      const stillPending = [];
+      for (const entry of pendingSyncQueue) {
+        const result = await postToWebhook(entry.payload);
+        if (!result.ok) stillPending.push(entry);
+      }
+      pendingSyncQueue = stillPending;
+      localStorage.setItem('pongamia_pending_sync', JSON.stringify(pendingSyncQueue));
+      updatePendingSyncBadge();
+
+      isFlushingSyncQueue = false;
+    }
+
+    // Retry roughly every minute while the page is open, and immediately
+    // whenever the browser regains connectivity.
+    setInterval(flushSyncQueue, 60000);
+    window.addEventListener('online', flushSyncQueue);
+
     function clearAllLogs() {
       const enteredPin = prompt("🔒 JUNIOR MANAGER AUTHORIZATION REQUIRED:\n\nEnter Manager Security PIN to clear local cache:");
       if (enteredPin === null) return;
@@ -2205,6 +2471,7 @@
       localStorage.removeItem('pongamia_logs');
       localStorage.removeItem('pongamia_adhoc_villages');
       localStorage.removeItem('pongamia_vendor_signatures');
+      localStorage.removeItem('pongamia_pending_sync');
       loggedTransactions = [];
       adhocVillagesStore = [];
       alert("Local cache cleared successfully.");
