@@ -51,7 +51,7 @@
   </header>
 
   <!-- Navigation Tabs -->
-  <div class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20 no-print">
+  <div id="mainNavBar" class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-20 no-print">
     <div class="max-w-7xl mx-auto flex overflow-x-auto space-x-4 sm:space-x-8 px-4">
       <button onclick="switchTab('log')" id="tab-log" class="py-3 px-2 tab-active whitespace-nowrap"><span class="hidden sm:inline">1. Log Sourcing Transaction</span><span class="sm:hidden">1. Log</span></button>
       <button onclick="switchTab('search')" id="tab-search" class="py-3 px-2 text-gray-500 hover:text-emerald-700 whitespace-nowrap"><span class="hidden sm:inline">2. Traceability Reports</span><span class="sm:hidden">2. Reports</span></button>
@@ -276,35 +276,43 @@
 
       <!-- Nearby Village Capacity Table -->
       <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
-          <div class="flex items-center space-x-3">
-            <h3 class="text-sm font-bold text-gray-800">Nearby Villages & Capacity Caps</h3>
-            <span id="tableUnallocatedBadge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800">
-              Unallocated: <span id="tblUnallocVal">0</span> <span class="unitLbl">KG</span>
-            </span>
+        <!-- This whole block freezes just below the main tab bar while you
+             scroll through the village list — so with 100+ villages you
+             can reach "Add All Entered" / "Save & Sync Transaction"
+             without scrolling all the way back up. Its top offset is set
+             in JS (updateStickyOffsets) to match the real height of the
+             tab bar above it, so the two never overlap. -->
+        <div id="villageTableStickyHeader" class="sticky z-10 bg-white" style="top: var(--nav-height, 52px);">
+          <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center space-x-3">
+              <h3 class="text-sm font-bold text-gray-800">Nearby Villages & Capacity Caps</h3>
+              <span id="tableUnallocatedBadge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                Unallocated: <span id="tblUnallocVal">0</span> <span class="unitLbl">KG</span>
+              </span>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button onclick="toggleNewVillageModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+                <span>➕ Add New Village</span>
+              </button>
+              <button onclick="addAllEnteredQuantities()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+                <span>⚡ Add All Entered</span>
+              </button>
+              <button onclick="saveCurrentTransaction()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
+                <span>💾 Save & Sync Transaction</span>
+              </button>
+              <span id="resultCount" class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">0 Villages Found</span>
+            </div>
           </div>
 
-          <div class="flex items-center space-x-2">
-            <button onclick="toggleNewVillageModal()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
-              <span>➕ Add New Village</span>
-            </button>
-            <button onclick="addAllEnteredQuantities()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
-              <span>⚡ Add All Entered</span>
-            </button>
-            <button onclick="saveCurrentTransaction()" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs px-3 py-1.5 rounded font-bold shadow-sm flex items-center space-x-1">
-              <span>💾 Save & Sync Transaction</span>
-            </button>
-            <span id="resultCount" class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">0 Villages Found</span>
+          <!-- Quick village search — jump straight to a village instead of scrolling the distance-sorted list, which matters most for a big multi-village delivery and on mobile. -->
+          <div class="p-2 bg-amber-50 border-b border-amber-100 flex flex-col sm:flex-row gap-2">
+            <input type="text" id="villageQuickSearch" oninput="filterVillageTableBySearch()" placeholder="🔎 Type a village name to jump to it…" class="border border-amber-300 rounded p-2 text-sm flex-1 bg-white">
+            <select id="villageSortSelect" onchange="resortVillageTable(this.value)" class="border border-amber-300 rounded p-2 text-sm bg-white sm:w-56">
+              <option value="distance" selected>Sort: Distance (nearest first)</option>
+              <option value="remaining">Sort: Remaining Capacity (most first)</option>
+            </select>
           </div>
-        </div>
-
-        <!-- Quick village search — jump straight to a village instead of scrolling the distance-sorted list, which matters most for a big multi-village delivery and on mobile. -->
-        <div class="p-2 bg-amber-50 border-b border-amber-100 flex flex-col sm:flex-row gap-2">
-          <input type="text" id="villageQuickSearch" oninput="filterVillageTableBySearch()" placeholder="🔎 Type a village name to jump to it…" class="border border-amber-300 rounded p-2 text-sm flex-1 bg-white">
-          <select id="villageSortSelect" onchange="resortVillageTable(this.value)" class="border border-amber-300 rounded p-2 text-sm bg-white sm:w-56">
-            <option value="distance" selected>Sort: Distance (nearest first)</option>
-            <option value="remaining">Sort: Remaining Capacity (most first)</option>
-          </select>
         </div>
 
         <div class="overflow-x-auto">
@@ -594,6 +602,19 @@
     let currentVendorGrns = [];
     let activeVendorGrnIndex = 0;
 
+    // Keeps the sticky village-table toolbar (#villageTableStickyHeader)
+    // positioned exactly below the main tab bar, whatever its actual
+    // rendered height turns out to be — avoids hardcoding a pixel value
+    // that could drift if the nav bar's height ever changes (different
+    // screen width, font rendering, etc).
+    function updateStickyOffsets() {
+      const navBar = document.getElementById('mainNavBar');
+      if (navBar) {
+        document.documentElement.style.setProperty('--nav-height', navBar.offsetHeight + 'px');
+      }
+    }
+    window.addEventListener('resize', updateStickyOffsets);
+
     document.addEventListener('DOMContentLoaded', () => {
       const savedWebhook = localStorage.getItem('pongamia_webhook');
       if (savedWebhook) {
@@ -607,6 +628,7 @@
       document.getElementById('txDate').value = new Date().toISOString().substring(0, 10);
       populateAdhocModalDropdowns();
       updatePendingSyncBadge();
+      updateStickyOffsets();
     });
 
     function autoCapitalize(input) {
