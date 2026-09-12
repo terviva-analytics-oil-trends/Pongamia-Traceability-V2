@@ -275,14 +275,20 @@
       </div>
 
       <!-- Nearby Village Capacity Table -->
-      <div class="bg-white rounded-lg shadow overflow-hidden">
+      <div class="bg-white rounded-lg shadow">
         <!-- This whole block freezes just below the main tab bar while you
              scroll through the village list — so with 100+ villages you
              can reach "Add All Entered" / "Save & Sync Transaction"
              without scrolling all the way back up. Its top offset is set
              in JS (updateStickyOffsets) to match the real height of the
-             tab bar above it, so the two never overlap. -->
-        <div id="villageTableStickyHeader" class="sticky z-10 bg-white" style="top: var(--nav-height, 52px);">
+             tab bar above it, so the two never overlap.
+             NOTE: the card wrapper above intentionally does NOT have
+             overflow-hidden — that would make IT the sticky containing
+             box instead of the page, silently breaking the freeze below
+             (only the outer tab bar would still stick). Corner-rounding
+             that overflow-hidden used to provide is applied directly to
+             this element and the table wrapper below instead. -->
+        <div id="villageTableStickyHeader" class="sticky z-10 bg-white rounded-t-lg overflow-hidden" style="top: var(--nav-height, 52px);">
           <div class="p-3 bg-gray-100 border-b flex flex-wrap justify-between items-center gap-2">
             <div class="flex items-center space-x-3">
               <h3 class="text-sm font-bold text-gray-800">Nearby Villages & Capacity Caps</h3>
@@ -315,7 +321,7 @@
           </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto rounded-b-lg">
           <table class="w-full text-left text-xs">
             <thead class="bg-gray-50 text-gray-600 uppercase border-b">
               <tr>
@@ -568,7 +574,13 @@
         <p class="text-xs text-gray-600">Paste your deployed Google Apps Script Webhook URL below to sync offline allocations across all supervisors in real time.</p>
         <div>
           <label class="block text-xs font-medium text-gray-600">Google Apps Script Webhook URL</label>
-          <input type="url" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec" class="border rounded p-2 text-sm w-full mt-1">
+          <div class="flex gap-2 mt-1">
+            <input type="url" id="webhookUrl" placeholder="https://script.google.com/macros/s/.../exec" class="border rounded p-2 text-sm flex-1">
+            <button onclick="copyWebhookUrlToClipboard()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs px-3 py-2 rounded font-bold whitespace-nowrap flex items-center space-x-1">
+              <span>📋 Copy</span>
+            </button>
+          </div>
+          <p class="text-[11px] text-gray-400 mt-1">Already connected? Tap Copy and send this URL (e.g. via WhatsApp) to a colleague setting up a new device — they paste it into this same field on their own phone or laptop, once.</p>
         </div>
         <div class="flex space-x-3">
           <button onclick="saveWebhookUrl()" class="bg-emerald-700 text-white text-xs px-4 py-2 rounded font-bold">Save Webhook URL</button>
@@ -2339,6 +2351,39 @@
       localStorage.setItem('pongamia_webhook', url);
       fetchCloudLedger();
       alert("Cloud Sync Webhook saved!");
+    }
+
+    // Lets someone who's already connected grab their exact webhook URL
+    // to hand off to a new colleague (via WhatsApp, email, etc.) — this
+    // is deliberately NOT an auto-discovery mechanism: there's no way for
+    // a brand-new device to look this up on its own without already
+    // knowing which Sheet/webhook to ask, short of hardcoding one URL
+    // into the app (which would defeat the point of one app working for
+    // every region's own separate Sheet). This just removes the typo risk
+    // of re-typing a long URL by hand.
+    async function copyWebhookUrlToClipboard() {
+      const urlField = document.getElementById('webhookUrl');
+      const url = urlField.value.trim();
+      if (!url) {
+        alert("There's no webhook URL saved on this device yet — nothing to copy. Once Tab 4 is set up and syncing here, you can use this button to share that URL with a colleague.");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("✅ Webhook URL copied to your clipboard — paste it (e.g. into WhatsApp) to share with a colleague setting up a new device.");
+      } catch (e) {
+        // Fallback for contexts where the Clipboard API isn't available
+        // (e.g. non-HTTPS, or an older mobile browser).
+        urlField.focus();
+        urlField.select();
+        urlField.setSelectionRange(0, 99999);
+        try {
+          document.execCommand('copy');
+          alert("✅ Webhook URL copied to your clipboard.");
+        } catch (e2) {
+          alert("Couldn't copy automatically — the URL is selected above, so you can copy it manually (Ctrl+C / Cmd+C).");
+        }
+      }
     }
 
     // Both sync functions below deliberately avoid `mode: 'no-cors'`.
