@@ -1084,6 +1084,7 @@
       const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
       masterVillages = [];
       const yieldFactor = parseFloat(document.getElementById('yieldFactor').value) || 3;
+      const statsMap = buildVillageStatsMap();
 
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
@@ -1096,7 +1097,7 @@
         let estTrees = parseFloat(v['Estimated Trees']) || 0;
         let maxCapKg = estTrees * yieldFactor;
         let refNo = v['Reference Number'] || ('fm' + Math.random().toString(36).substring(2,8));
-        let sourcedKg = getSourcedFromLogs(refNo);
+        let sourcedKg = (statsMap[refNo] && statsMap[refNo].sourced_kg) || 0;
 
         masterVillages.push({
           ref_number: refNo,
@@ -1117,11 +1118,49 @@
 
       adhocVillagesStore.forEach(adhoc => {
         if (!masterVillages.find(m => m.ref_number === adhoc.ref_number)) {
-          masterVillages.push({ ...adhoc, sourced_kg: getSourcedFromLogs(adhoc.ref_number) });
+          const sourcedKg = (statsMap[adhoc.ref_number] && statsMap[adhoc.ref_number].sourced_kg) || 0;
+          masterVillages.push({ ...adhoc, sourced_kg: sourcedKg });
         }
       });
 
       document.getElementById('masterStatus').innerText = `Loaded ${masterVillages.length} master villages!`;
+    }
+
+    // The three hot paths below (master CSV load, every cloud sync, and
+    // every village-table render) all used to call getSourcedFromLogs /
+    // getVillageUsageCount once PER VILLAGE — and each of those calls
+    // itself re-scanned the ENTIRE transaction history. That's
+    // villages × transactions multiplied together, which is fine at a
+    // couple thousand villages but turns into multi-second freezes once
+    // the master list grows into the 15,000-20,000 range (confirmed by
+    // timing it directly).
+    //
+    // This scans the transaction history ONCE, building a lookup table
+    // keyed by village ref — then each of those three call sites does a
+    // simple O(1) lookup per village instead of a fresh full re-scan.
+    // Villages × transactions becomes villages + transactions.
+    //
+    // getSourcedFromLogs()/getVillageUsageCount() themselves are left
+    // exactly as they were — they're still used for one-off lookups
+    // (e.g. a single newly-added village) where scanning the whole
+    // history once is completely fine and not worth the extra bookkeeping.
+    function buildVillageStatsMap() {
+      const stats = {};
+      loggedTransactions.forEach(t => {
+        if (!t.items || !Array.isArray(t.items)) return;
+        const seenInThisTx = new Set();
+        t.items.forEach(i => {
+          const ref = i.ref_number;
+          if (!ref) return;
+          if (!stats[ref]) stats[ref] = { sourced_kg: 0, usage_count: 0 };
+          stats[ref].sourced_kg += parseFloat(i.allocated_kg || 0);
+          if (!seenInThisTx.has(ref)) {
+            stats[ref].usage_count++;
+            seenInThisTx.add(ref);
+          }
+        });
+      });
+      return stats;
     }
 
     function getSourcedFromLogs(ref) {
@@ -1170,8 +1209,9 @@
 
     function recalculateMasterSourcedFromLogs() {
       if (!masterVillages || masterVillages.length === 0) return;
+      const statsMap = buildVillageStatsMap();
       masterVillages.forEach(v => {
-        let sourcedKg = getSourcedFromLogs(v.ref_number);
+        let sourcedKg = (statsMap[v.ref_number] && statsMap[v.ref_number].sourced_kg) || 0;
         v.sourced_kg = sourcedKg;
         if (!v.status.includes('Non-Surveyed')) {
           v.remaining_kg = v.max_cap_kg - sourcedKg;
@@ -1272,6 +1312,7 @@
       }
 
       const mult = unitMultiplier();
+      const statsMap = buildVillageStatsMap();
 
       currentFilteredVillages.forEach((v, idx) => {
         let isAdhoc = v.status && v.status.includes('Non-Surveyed');
@@ -1281,7 +1322,7 @@
         let remVal = isAdhoc ? 'Unlimited' : Math.max(0, (v.remaining_kg * mult));
         let remDisp = isAdhoc ? 'Unlimited' : remVal.toFixed(2);
 
-        let usageCount = getVillageUsageCount(v.ref_number);
+        let usageCount = (statsMap[v.ref_number] && statsMap[v.ref_number].usage_count) || 0;
         let usageBadgeClass = usageCount > 3 ? "bg-red-100 text-red-800 font-bold" : (usageCount > 0 ? "bg-amber-100 text-amber-900 font-bold" : "bg-gray-100 text-gray-600");
 
         let savedVal = tableInputState[v.ref_number] || '';
@@ -1956,7 +1997,7 @@
     // and repeating the column header row automatically — no more manual
     // row-height measurement.
 
-    const PDF_MARGIN_MM = 15;
+    const PDF_MARGIN_MM = 12;
 
     function ensurePdfLibsLoaded() {
       if (!window.jspdf || !window.jspdf.jsPDF) {
@@ -1974,20 +2015,20 @@
       doc.setFontSize(15);
       doc.text('TRACEABILITY SHEET', pageWidth / 2, y, { align: 'center' });
       doc.setLineWidth(0.4);
-      doc.line(PDF_MARGIN_MM, y + 2.5, pageWidth - PDF_MARGIN_MM, y + 2.5);
+      doc.line(PDF_MARGIN_MM, y + 2, pageWidth - PDF_MARGIN_MM, y + 2);
 
       doc.autoTable({
-        startY: y + 6,
+        startY: y + 4,
         margin: { left: PDF_MARGIN_MM, right: PDF_MARGIN_MM },
         body: [
           ['Vendor Name', tx.vendor_name || '-'],
           ['Truck Arrival ID / GRN', tx.truck_id || '-']
         ],
         theme: 'grid',
-        styles: { fontSize: 9.5, cellPadding: 2.2, lineColor: [17, 24, 39], lineWidth: 0.2 },
+        styles: { fontSize: 9.5, cellPadding: 1.5, lineColor: [17, 24, 39], lineWidth: 0.2 },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 55 } }
       });
-      return doc.lastAutoTable.finalY + 4;
+      return doc.lastAutoTable.finalY + 2.5;
     }
 
     // Draws the Ref/Village/Block/Qty table. AutoTable paginates this
@@ -2008,7 +2049,7 @@
         body: body,
         foot: [['', '', `TOTAL QTY (in ${unit})`, (totalKg * mult).toLocaleString(undefined, { maximumFractionDigits: 2 })]],
         theme: 'grid',
-        styles: { fontSize: 9.5, cellPadding: 2.4, lineColor: [17, 24, 39], lineWidth: 0.2, overflow: 'linebreak' },
+        styles: { fontSize: 9.5, cellPadding: 1.5, lineColor: [17, 24, 39], lineWidth: 0.2, overflow: 'linebreak' },
         headStyles: { fillColor: [243, 244, 246], textColor: [17, 24, 39], fontStyle: 'bold', lineWidth: 0.3 },
         footStyles: { fillColor: [255, 255, 255], textColor: [17, 24, 39], fontStyle: 'bold', lineWidth: 0.3 },
         columnStyles: {
@@ -2026,36 +2067,38 @@
     function drawCertificateFooter(doc, tx, resolvedSig, afterY) {
       const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
-      const footerHeight = 40;
-      let y = afterY + 8;
+      // Measured against the actual rendered footer below, with headroom
+      // — this used to be a generous guess (40mm) that pushed the footer
+      // to its own near-empty page far earlier than it actually needed to.
+      const footerHeight = 28;
+      let y = afterY + 5;
 
       if (y + footerHeight > pageHeight - PDF_MARGIN_MM) {
         doc.addPage();
-        y = PDF_MARGIN_MM + 8;
+        y = PDF_MARGIN_MM + 5;
       }
 
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(8);
       doc.text('I herewith declare that to the best of my knowledge, the data presented in this form is true and correct.', PDF_MARGIN_MM, y);
-      y += 6;
+      y += 4.5;
       doc.setLineWidth(0.2);
       doc.line(PDF_MARGIN_MM, y, pageWidth - PDF_MARGIN_MM, y);
-      // Everything below this point (signature block) starts a clean
-      // 10mm below the declaration line, so the signature image — which
-      // sits just above its own underline — never overlaps that line.
-      y += 10;
+      // Signature block starts a clean 6mm below the declaration line —
+      // still enough clearance that the image never touches the line.
+      y += 6;
 
-      const sigBoxWidth = 45;
+      const sigBoxWidth = 42;
       const sigX = pageWidth - PDF_MARGIN_MM - sigBoxWidth;
       if (resolvedSig) {
         try {
-          doc.addImage(resolvedSig, 'JPEG', sigX + 5, y - 2, sigBoxWidth - 10, 10);
+          doc.addImage(resolvedSig, 'JPEG', sigX + 4, y - 1.5, sigBoxWidth - 8, 7);
         } catch (e) {
           console.error('Could not draw signature image in PDF:', e);
         }
       }
 
-      const sigLineY = y + 10;
+      const sigLineY = y + 7;
       doc.setLineWidth(0.2);
       doc.line(sigX, sigLineY, sigX + sigBoxWidth, sigLineY);
 
@@ -2065,11 +2108,11 @@
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.text('Signature of Vendor', sigX + sigBoxWidth / 2, sigLineY + 4, { align: 'center' });
+      doc.text('Signature of Vendor', sigX + sigBoxWidth / 2, sigLineY + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(75, 85, 99);
-      doc.text(`Logged By: ${tx.logged_by || ''}`, sigX + sigBoxWidth / 2, sigLineY + 8, { align: 'center' });
+      doc.text(`Logged By: ${tx.logged_by || ''}`, sigX + sigBoxWidth / 2, sigLineY + 6.5, { align: 'center' });
       doc.setTextColor(0, 0, 0);
     }
 
