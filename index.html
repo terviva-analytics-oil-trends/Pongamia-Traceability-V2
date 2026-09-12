@@ -129,13 +129,15 @@
           </button>
         </div>
 
-        <!-- Edit/Delete Management Box -->
+        <!-- Find/Select/Edit/Delete Management Box -->
         <div class="border-t pt-3 space-y-2">
-          <h4 class="font-bold text-slate-800 uppercase text-[11px]">✏️ Manage Non-Surveyed Villages (PIN Required)</h4>
+          <h4 class="font-bold text-slate-800 uppercase text-[11px]">✏️ Find an Existing Non-Surveyed Village</h4>
+          <p class="text-[10px] text-gray-500">Already added by a colleague? Find it below — "Select" brings it straight into the allocation table so you can add a quantity. Edit/Delete require the Manager PIN.</p>
           <div class="flex space-x-2">
             <select id="nsExistingDropdown" class="border rounded p-2 w-full bg-slate-50 font-semibold text-xs">
-              <option value="">-- Select Village to Edit / Delete --</option>
+              <option value="">-- Select Village --</option>
             </select>
+            <button onclick="selectAdhocVillageForAllocation()" class="bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-1 rounded text-xs font-bold shadow">Select</button>
             <button onclick="editSelectedAdhocVillage()" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-bold shadow">Edit</button>
             <button onclick="deleteSelectedAdhocVillage()" class="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-bold shadow">Delete</button>
           </div>
@@ -663,7 +665,7 @@
       const distDatalist = document.getElementById('nsDistrictDatalist');
       const blockDatalist = document.getElementById('nsBlockDatalist');
 
-      dropdown.innerHTML = '<option value="">-- Select Village to Edit / Delete --</option>';
+      dropdown.innerHTML = '<option value="">-- Select Village --</option>';
       distDatalist.innerHTML = '';
       blockDatalist.innerHTML = '';
 
@@ -676,6 +678,45 @@
 
       allDistricts.forEach(d => { distDatalist.innerHTML += `<option value="${d}">`; });
       allBlocks.forEach(b => { blockDatalist.innerHTML += `<option value="${b}">`; });
+    }
+
+    // Solves the "I didn't know a colleague already added this village"
+    // gap: previously the only options for a village found via this
+    // dropdown were Edit or Delete — there was no way to just bring an
+    // already-existing ad-hoc village into the allocation table to add a
+    // quantity to it. This does that: finds the village, makes sure it's
+    // in the currently-displayed table (adding it to the top if it
+    // isn't), closes the modal, and scrolls straight to its row with a
+    // brief highlight so it's obvious which one to type a quantity into.
+    function selectAdhocVillageForAllocation() {
+      const refVal = document.getElementById('nsExistingDropdown').value;
+      if (!refVal) {
+        alert("Please select a village from the dropdown first.");
+        return;
+      }
+
+      let v = masterVillages.find(m => m.ref_number === refVal) || adhocVillagesStore.find(a => a.ref_number === refVal);
+      if (!v) return;
+
+      let inFiltered = currentFilteredVillages.find(f => f.ref_number === v.ref_number);
+      if (!inFiltered) {
+        currentFilteredVillages.unshift(v);
+      }
+
+      toggleNewVillageModal();
+      renderVillageTable();
+
+      setTimeout(() => {
+        const idx = currentFilteredVillages.findIndex(f => f.ref_number === v.ref_number);
+        const row = document.getElementById(`villageRow_${idx}`);
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.add('ring-2', 'ring-emerald-500');
+          setTimeout(() => row.classList.remove('ring-2', 'ring-emerald-500'), 2500);
+        }
+        const input = document.getElementById(`alloc_${idx}`);
+        if (input) input.focus();
+      }, 50);
     }
 
     function editSelectedAdhocVillage() {
@@ -889,6 +930,7 @@
       }
 
       let existingObj = masterVillages.find(a => a.village_name.toLowerCase() === vName.toLowerCase() && a.block.toLowerCase() === block.toLowerCase());
+      const wasAlreadyAdded = !!existingObj;
       
       let targetObj;
 
@@ -952,7 +994,16 @@
       document.getElementById('nsProcuredQty').value = '';
       document.getElementById('nsExistingDropdown').value = '';
 
-      alert(`Village '${vName}' added to allocation table as Non-Surveyed!`);
+      const hasQty = !isNaN(enteredQtyVal) && enteredQtyVal > 0;
+      if (wasAlreadyAdded) {
+        alert(hasQty
+          ? `ℹ️ '${vName}' (${block}) was already added earlier — likely by a colleague. Your ${enteredQtyVal} ${currentUnit} has been added to its existing total instead of creating a duplicate.`
+          : `ℹ️ '${vName}' (${block}) was already added earlier — likely by a colleague. It's now in the allocation table below so you can add a quantity to it.`);
+      } else {
+        alert(hasQty
+          ? `✅ New Non-Surveyed village '${vName}' created with ${enteredQtyVal} ${currentUnit} allocated.`
+          : `✅ New Non-Surveyed village '${vName}' added to the allocation table.`);
+      }
     }
 
     function changeUnit(unit) {
@@ -1275,6 +1326,22 @@
       return R * c;
     }
 
+    // Ad-hoc (non-surveyed) villages are always grouped after surveyed
+    // ones, whichever primary sort is active — their distance/capacity
+    // fields don't carry the same meaning as a surveyed village's do, so
+    // sorting them together with surveyed villages by those fields isn't
+    // meaningful. Within that ad-hoc group, they're sorted by highest
+    // volume already sourced, since that's what's actually useful to
+    // spot first once there are many of them.
+    function compareWithAdhocLast(a, b, primaryCompare) {
+      const aAdhoc = a.status && a.status.includes('Non-Surveyed');
+      const bAdhoc = b.status && b.status.includes('Non-Surveyed');
+      if (aAdhoc && !bAdhoc) return 1;
+      if (!aAdhoc && bAdhoc) return -1;
+      if (aAdhoc && bAdhoc) return (b.sourced_kg || 0) - (a.sourced_kg || 0);
+      return primaryCompare(a, b);
+    }
+
     function searchNearbyVillages() {
       const vLat = parseFloat(document.getElementById('vendorLat').value);
       const vLng = parseFloat(document.getElementById('vendorLng').value);
@@ -1290,7 +1357,8 @@
       currentFilteredVillages = masterVillages.map(v => {
         let dist = haversine(vLat, vLng, v.lat, v.lng);
         return { ...v, dist: dist };
-      }).filter(v => v.dist <= radius || v.status.includes('Non-Surveyed')).sort((a,b) => a.dist - b.dist);
+      }).filter(v => v.dist <= radius || v.status.includes('Non-Surveyed'))
+        .sort((a, b) => compareWithAdhocLast(a, b, (x, y) => x.dist - y.dist));
 
       const searchBox = document.getElementById('villageQuickSearch');
       if (searchBox) searchBox.value = '';
@@ -1306,20 +1374,15 @@
     // the order they're presented in. A new radius search always resets
     // this back to distance (see searchNearbyVillages above); switching
     // to "remaining capacity" is a deliberate, temporary choice for
-    // allocating a specific delivery efficiently.
+    // allocating a specific delivery efficiently. Either way, ad-hoc
+    // villages stay grouped after surveyed ones — see
+    // compareWithAdhocLast above.
     function resortVillageTable(criterion) {
       captureTableInputs();
       if (criterion === 'remaining') {
-        currentFilteredVillages.sort((a, b) => {
-          const aAdhoc = a.status && a.status.includes('Non-Surveyed');
-          const bAdhoc = b.status && b.status.includes('Non-Surveyed');
-          if (aAdhoc && !bAdhoc) return 1;
-          if (!aAdhoc && bAdhoc) return -1;
-          if (aAdhoc && bAdhoc) return 0;
-          return (b.remaining_kg || 0) - (a.remaining_kg || 0);
-        });
+        currentFilteredVillages.sort((a, b) => compareWithAdhocLast(a, b, (x, y) => (y.remaining_kg || 0) - (x.remaining_kg || 0)));
       } else {
-        currentFilteredVillages.sort((a, b) => a.dist - b.dist);
+        currentFilteredVillages.sort((a, b) => compareWithAdhocLast(a, b, (x, y) => x.dist - y.dist));
       }
       renderVillageTable();
     }
@@ -1362,6 +1425,7 @@
         let savedVal = tableInputState[v.ref_number] || '';
 
         let tr = document.createElement('tr');
+        tr.id = `villageRow_${idx}`;
         tr.className = isAdhoc ? "bg-amber-50/50 hover:bg-amber-100/50" : "hover:bg-gray-50";
         tr.setAttribute('data-village-name', v.village_name.toLowerCase());
         tr.innerHTML = `
