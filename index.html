@@ -16,8 +16,8 @@
 
   <!-- Webhook Missing Warning Banner -->
   <div id="webhookAlertBanner" class="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex justify-between items-center hidden no-print">
-    <span>⚠️ CLOUD SYNC NOT CONFIGURED ON THIS DEVICE: Paste your Google Sheet Webhook URL in Tab 3 to enable live team sheet sharing!</span>
-    <button onclick="switchTab('sync')" class="bg-slate-900 text-white px-2 py-1 rounded text-[10px] uppercase font-extrabold">Setup Tab 3</button>
+    <span>⚠️ CLOUD SYNC NOT CONFIGURED ON THIS DEVICE: Paste your Google Sheet Webhook URL in Tab 4 to enable live team sheet sharing!</span>
+    <button onclick="switchTab('sync')" class="bg-slate-900 text-white px-2 py-1 rounded text-[10px] uppercase font-extrabold">Setup Tab 4</button>
   </div>
 
   <!-- Main Header -->
@@ -2403,7 +2403,7 @@
     // readable, so we can actually confirm success or surface the error.
     async function postToWebhook(payload) {
       const url = localStorage.getItem('pongamia_webhook');
-      if (!url) return { ok: false, reason: 'No cloud sync webhook configured (see Tab 3).' };
+      if (!url) return { ok: false, reason: 'No cloud sync webhook configured (see Tab 4).' };
       try {
         const res = await fetch(url, {
           method: 'POST',
