@@ -132,7 +132,6 @@
         <!-- Find/Select/Edit/Delete Management Box -->
         <div class="border-t pt-3 space-y-2">
           <h4 class="font-bold text-slate-800 uppercase text-[11px]">✏️ Find an Existing Non-Surveyed Village</h4>
-          <p class="text-[10px] text-gray-500">Already added by a colleague? Find it below — "Select" brings it straight into the allocation table so you can add a quantity. Edit/Delete require the Manager PIN.</p>
           <div class="flex space-x-2">
             <select id="nsExistingDropdown" class="border rounded p-2 w-full bg-slate-50 font-semibold text-xs">
               <option value="">-- Select Village --</option>
@@ -1330,15 +1329,15 @@
     // ones, whichever primary sort is active — their distance/capacity
     // fields don't carry the same meaning as a surveyed village's do, so
     // sorting them together with surveyed villages by those fields isn't
-    // meaningful. Within that ad-hoc group, they're sorted by highest
-    // volume already sourced, since that's what's actually useful to
-    // spot first once there are many of them.
+    // meaningful. Within that ad-hoc group, they're sorted alphabetically
+    // by village name, since that's what makes a newly-added village easy
+    // to find by name once there are many of them.
     function compareWithAdhocLast(a, b, primaryCompare) {
       const aAdhoc = a.status && a.status.includes('Non-Surveyed');
       const bAdhoc = b.status && b.status.includes('Non-Surveyed');
       if (aAdhoc && !bAdhoc) return 1;
       if (!aAdhoc && bAdhoc) return -1;
-      if (aAdhoc && bAdhoc) return (b.sourced_kg || 0) - (a.sourced_kg || 0);
+      if (aAdhoc && bAdhoc) return (a.village_name || '').localeCompare(b.village_name || '');
       return primaryCompare(a, b);
     }
 
